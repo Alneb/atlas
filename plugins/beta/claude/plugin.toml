@@ -2,9 +2,9 @@
 # resuming its own conversation, with the account and command of the settings below — and the plan's usage in the
 # status bar (5-hour session, week), as `claude-acc usage` and Claude Code's session hooks read it. README.md.
 title = "Claude"
-description = "Claude Code sessions in the terminal, and the plan's usage (5-hour session, week) in the status bar"
+description = "Claude Code sessions in the terminal, their conversation rendered with its formulas (Super+Alt+K), and the plan's usage (5-hour session, week) in the status bar"
 icon = "claude"
-version = "0.7.1"
+version = "0.8.1"
 api = 16
 
 [[agent]]

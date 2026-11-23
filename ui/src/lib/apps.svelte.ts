@@ -7,6 +7,7 @@ import { allCommands } from "./keymap.svelte";
 import { paneId, type IconName, type PaneSpec } from "./panes";
 import { plugins, pluginOn, pluginSpec } from "./plugins.svelte";
 import { isIconName } from "./icons";
+import { LIBRARIES_ROLE } from "./libraries.svelte";
 import { settings, change } from "./settings.svelte";
 
 /** Home's tab id: the home document's (a note or a page, `home` in config), else the Today pane's. */
@@ -15,8 +16,12 @@ export const setHomeSpec = (s: PaneSpec): void => { home.id = paneId(s); };
 
 /** Whether an open pane is an app rather than a document. A plugin's pane opened on a file ("Open with")
  *  is a document; opened on a value (an account, a host) it is that app's. */
+/** A tab shown as an app (in the apps row, not the tab list): Home, and the page of a plugin that has a launcher
+ *  tile (`rail` with a pane, or the Libraries page behind the Library tile). A plugin with no tile (Claude's
+ *  rendered conversation) opens plain tabs. */
 export const isApp = (id: string, s: PaneSpec | undefined): boolean =>
-  id === home.id || s?.kind === "today" || (s?.kind === "plugin" && !s.path);
+  id === home.id || s?.kind === "today" || (s?.kind === "plugin" && !s.path && hasTile(s.id));
+const hasTile = (plugin: string): boolean => plugins.list.some((p) => p.id === plugin && !!p.view && (p.rail || p.provides.includes(LIBRARIES_ROLE)));
 
 /** `ids`: the tabs it stands for — Home's are the home document's and the classic Today pane's (a vault with both
  *  open showed two "today" tiles). The first is its own. */

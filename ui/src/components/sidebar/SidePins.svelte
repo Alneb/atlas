@@ -81,7 +81,7 @@
         onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }} oncontextmenu={(e) => appMenu(e, a)}><Icon name={a.icon} size={16} /></button>
     {/each}
     {#if wide && rest.length}
-      <button class="app more" aria-label="More apps ({rest.length})" title="{rest.length} more: {rest.map((a) => a.title).join(', ')}" data-testid="apps-more" onclick={moreApps}><Icon name="plus" size={16} /></button>
+      <button class="app more" aria-label="More apps ({rest.length})" title="{rest.length} more: {rest.map((a) => a.title).join(', ')}" data-testid="apps-more" onclick={moreApps}><Icon name="more" size={16} /><span class="more-n">{rest.length}</span></button>
     {/if}
   </div>
 {/if}
@@ -116,6 +116,10 @@
     background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); transition: background .12s, border-color .12s, color .12s; }
   .apps.wide .app { width: auto; }
   .app:hover { background: var(--bg-active); color: var(--text); }
+  /* the overflow is not an app: no tile, faint dots and how many wait behind them */
+  .app.more { background: transparent; border-color: transparent; color: var(--text-faint); }
+  .app.more:hover { background: var(--bg-hover); color: var(--text); }
+  .more-n { position: absolute; right: 3px; top: 2px; font-size: calc(9px * var(--ui-scale, 1)); font-weight: 600; line-height: 1; color: inherit; }
   .app.open::before { content: ""; position: absolute; bottom: 3px; left: 50%; width: 10px; height: 2px; margin-left: -5px; border-radius: 2px; background: var(--text-faint); }
   .app.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
   .app.active::before { background: var(--accent); }

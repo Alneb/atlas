@@ -13,13 +13,22 @@
   import type { PaneProps } from "../lib/dock";
   import { terminals } from "../lib/registry";
   import { paneZoom, PANE_ZOOM_EVENT, wheelZoom } from "../lib/pane-zoom";
-  import { closePanel } from "../lib/dock";
+  import { closePanel, focusPanel } from "../lib/dock";
+  import Icon from "../components/Icon.svelte";
+  import { terminalButtons } from "../lib/terminal-buttons.svelte";
+  import { agentOfTab } from "../lib/agents";
   import { getDock } from "../lib/dock-instance";
   import { wikilinkProvider } from "../lib/terminal-wikilinks";
   import { atPointer, popMenu } from "../lib/menu";
   import { cleanTerminalCopy } from "../lib/text";
 
   let { spec, panel }: PaneProps<"terminal"> = $props();
+  // an agent tab: the buttons its agent's plugin puts there (terminal-buttons.svelte.ts)
+  const agent = $derived(agentOfTab(spec));
+  const buttons = $derived(agent ? terminalButtons.filter((b) => b.plugin === agent.plugin) : []);
+  function press(run: (typeof terminalButtons)[number]["run"]): void {
+    if (agent) void run({ id: panel.id, agent: agent.ref, session: spec.session, show: () => { focusPanel(panel.id); terminals.get(panel.id)?.focus(); } });
+  }
   /** This window, the same across a reload of it (sessionStorage), another in a second window or test. */
   function windowKey(): string {
     try {
@@ -315,14 +324,25 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -- a click on the padding gives the terminal its keys too -->
 <!-- a press anywhere in it makes its tab the active one (F11, Super+F and every "this tab" command act on it): the
      overlay a terminal is drawn in sits outside its group, and its focus did not always reach dockview -->
-<div class="term-pane" data-preset={spec.preset} onpointerdowncapture={() => { if (!panel.isActive) panel.setActive(); }} onpointerdown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); terminals.get(panel.id)?.focus(); } }}>
+<div class="term-pane" data-preset={spec.preset} data-agent={agent?.ref} data-agent-session={agent ? spec.session : undefined} onpointerdowncapture={() => { if (!panel.isActive) panel.setActive(); }} onpointerdown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); terminals.get(panel.id)?.focus(); } }}>
   <div class="term-host" bind:this={host} onfocusin={() => { const t = terminals.get(panel.id); if (t) t.usedAt = Date.now(); }}></div>
   {#if conn === "connecting"}<div class="term-status">connecting…</div>{/if}
+  {#if buttons.length}
+    <div class="term-buttons">
+      {#each buttons as b (b.plugin + b.id)}
+        <button class="icon-btn tipped" aria-label={b.title} data-tip={b.title} onpointerdown={(e) => e.stopPropagation()} onclick={() => press(b.run)}>
+          {#if b.icon}<Icon name={b.icon} size={14} />{:else}{b.title}{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <style>
   .term-pane { height: 100%; position: relative; background: var(--term-bg); padding: 8px 4px 4px 12px; box-sizing: border-box; }
   .term-host { height: 100%; width: 100%; }
+  .term-buttons { position: absolute; right: 14px; top: 6px; z-index: 5; display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--term-bg) 82%, transparent); opacity: .55; transition: opacity .12s; }
+  .term-pane:hover .term-buttons, .term-buttons:focus-within { opacity: 1; }
   .term-status { position: absolute; right: 12px; top: 8px; font-size: calc(11.5px * var(--ui-scale, 1)); color: var(--text-faint); }
   .term-pane :global(.xterm-viewport) { background: transparent !important; }
 </style>

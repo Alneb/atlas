@@ -1,4 +1,5 @@
-//! The Claude plugin's helper (plugin.toml `[helper]`): `usage` (the plan's limits of the account Atlas's Claude runs
+//! The Claude plugin's helper (plugin.toml `[helper]`): `conversations` / `transcript` (this vault's Claude Code
+//! conversations, read for the rendered view: transcript.rs), `usage` (the plan's limits of the account Atlas's Claude runs
 //! as, or of every account), `commands` and `account_folders` (the settings' suggestions). The access token is read
 //! from the credentials file at each look and only sent to the usage endpoint, through the core's fetch. Answers are
 //! kept 90 s per account (the bar asks every couple of minutes, an agent may ask too); the session hooks' fresh copy
@@ -163,14 +164,61 @@ fn account_folders(home: &Path) -> Value {
     Value::Array(out)
 }
 
+/// Where this vault's Claude conversations are: the account Atlas's Claude runs as, the vault's folder in it.
+fn vault_conversations(p: &Value, home: &Path, root: &Path) -> PathBuf {
+    let config = std::fs::read_to_string(root.join(".atlas/config.toml")).unwrap_or_default();
+    let config_dir = std::env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from);
+    let account = in_use(p["settings"]["account"].as_str().unwrap_or_default(), &config, config_dir.as_deref(), home);
+    let root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    claude::transcript::project_dir(&account, &root)
+}
+
+/// `conversations {}` → `{ folder, list: [{ id, modified, size, title }] }`, newest first (the view's picker).
+fn conversations(p: &Value, home: &Path, root: &Path, titles: &mut claude::transcript::Titles) -> Value {
+    let dir = vault_conversations(p, home, root);
+    json!({ "folder": tilde(&dir, home), "list": claude::transcript::conversations(&dir, 40, titles) })
+}
+
+/// `transcript { id | tab, from, tail? }` → the conversation's messages from byte `from` (transcript.rs `piece`), with its
+/// `id`: a conversation named, or the one an Atlas tab (its session id) holds now. Not written yet: no entries.
+fn transcript(p: &Value, home: &Path, root: &Path) -> Result<Value, String> {
+    let id = match p["tab"].as_str() {
+        Some(tab) => claude::transcript::tab_conversation(root, tab),
+        None => p["id"].as_str().filter(|id| claude::transcript::is_id(id)).map(str::to_string),
+    }
+    .ok_or("no conversation id")?;
+    let file = vault_conversations(p, home, root).join(format!("{id}.jsonl"));
+    if !file.is_file() {
+        return Ok(json!({ "id": id, "size": 0, "restart": false, "more": false, "entries": [] }));
+    }
+    // `tail`: a first read (from 0) of a long conversation starts that many bytes before its end (`skipped` says where)
+    let length = std::fs::metadata(&file).map(|m| m.len()).unwrap_or(0);
+    let mut from = p["from"].as_u64().unwrap_or(0);
+    let tail = p["tail"].as_u64().unwrap_or(0);
+    let skipped = if from == 0 && tail > 0 && length > tail { length - tail } else { 0 };
+    if skipped > 0 {
+        from = skipped;
+    }
+    let mut piece = claude::transcript::piece(&file, from).map_err(|e| format!("{}: {e}", file.display()))?;
+    piece["id"] = json!(id);
+    piece["length"] = json!(length);
+    piece["skipped"] = json!(skipped);
+    Ok(piece)
+}
+
 fn main() {
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_default();
     let root = PathBuf::from(std::env::var_os("ATLAS_ROOT").unwrap_or_else(|| ".".into()));
-    let mut usage = Usage { atlas: Atlas::new(), home: home.clone(), root, cache: HashMap::new(), good: HashMap::new() };
+    let mut usage = Usage { atlas: Atlas::new(), home: home.clone(), root: root.clone(), cache: HashMap::new(), good: HashMap::new() };
     let mut methods = Methods::new();
     methods.add("usage", move |p| Ok(usage.usage(&p)));
     let h = home.clone();
     methods.add("commands", move |_| Ok(commands(&h)));
+    let (h, r) = (home.clone(), root.clone());
+    let mut titles = claude::transcript::Titles::new();
+    methods.add("conversations", move |p| Ok(conversations(&p, &h, &r, &mut titles)));
+    let (h, r) = (home.clone(), root.clone());
+    methods.add("transcript", move |p| transcript(&p, &h, &r).map_err(|why| atlas_plugin::Error { status: None, why }));
     methods.add("account_folders", move |_| Ok(account_folders(&home)));
     atlas_plugin::serve(methods);
 }

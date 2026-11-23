@@ -11,6 +11,15 @@ Claude Code as one of Atlas's AI agents, and your Claude plan's usage in the sta
   as, every limit with its reset time on hover, ⚠ from the warning level, and a notice once per window when the
   session limit passes it (remembered across restarts). A click, or **Claude: show usage**, looks again at once and opens
   the report: each account's limits as bars, red past the warning, with when each resets, the account in use first.
+- **The conversation, rendered** — the button in a Claude tab's corner, or **Super+Alt+K** in it, shows that tab's
+  conversation as a chat: your messages as bubbles, Claude's replies as Markdown with their formulas drawn ($…$, $$…$$,
+  \(…\), \[…\]), tables, code with a copy button, `[[links]]` as in a note (followed on a click, red when no file
+  has that name), and Claude's steps between two replies one pill ("6 steps · Bash ×4 · Read") that opens on each tool
+  and its answer. **Terminal** (or Super+Alt+K again) goes back to the tab. Pressed anywhere else, the key shows the
+  conversation Claude wrote to last in this vault, with a list of the others. It reads on as Claude writes (once a
+  second; Claude Code writes a reply's text when that piece is finished, not word by word); a long conversation opens
+  on its last 6 MB. It is read from Claude Code's own file (`<account>/projects/<vault folder>/<id>.jsonl`) by the
+  helper, following the tab when /clear moved it to a new conversation; nothing is written.
 - **The tool `usage`** (`claude_usage` through `atlas mcp`): the plan's limits in percent with their reset times, for
   the current account or, with `all = true`, every account found on this computer. No secrets in the answer.
 
@@ -34,9 +43,9 @@ is how Claude Code is started inside Atlas.
 
 ## Needs
 
-Claude Code installed and signed in on the machine running Atlas's core. The usage helper is a small program of the
-plugin's own (Rust, `engine/`, built into `bin/<target>/` by `engine/build.sh`): it reads Claude Code's credentials and
-the session hooks' cache, outside the vault, and asks the usage endpoint through Atlas's fetch
+Claude Code installed and signed in on the machine running Atlas's core. The helper is a small program of the
+plugin's own (Rust, `engine/`, built into `bin/<target>/` by `engine/build.sh`): it reads Claude Code's credentials, the session hooks' cache and
+the vault's conversations, outside the vault, and asks the usage endpoint through Atlas's fetch
 (`net = ["api.anthropic.com"]`); the token is read at each look and sent nowhere else.
 
 ## Platforms

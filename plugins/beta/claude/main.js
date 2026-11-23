@@ -1,4 +1,4 @@
-// Claude usage in the status bar (README.md): "Claude 42 %" — the session limit of the account Atlas's Claude runs
+// Claude usage in the status bar (README.md); Super+Alt+K draws the conversation as a page (view.js, from ui/src/view.ts): "Claude 42 %" — the session limit of the account Atlas's Claude runs
 // as (the helper's `in_use`, engine/src/lib.rs) — and its limits on hover; a click looks again and shows the report
 // (usage.js, a dialog: each account's limits as bars).
 
@@ -51,8 +51,33 @@ export function register(atlas) {
     } finally { looking = false; }
   }
   atlas.registerCommand({ id: "show", title: "Claude: show usage", run: () => void look(true) });
+  // The conversation drawn as a chat (view.js: Markdown, formulas, [[links]], steps folded): from a Claude tab its
+  // button (API 36) or Super+Alt+K in it shows that tab's conversation, "Terminal" (or the key again) goes back to it;
+  // anywhere else the key shows the conversation Claude wrote to last.
+  const shows = new Map(); // a tab's session → bring that terminal back
+  const rendered = (session) => atlas.openView(session ? JSON.stringify({ tab: session }) : "conversation", { title: "Claude, rendered", icon: "claude" });
+  if ((atlas.version ?? 0) >= 36 && atlas.terminal?.button) {
+    atlas.terminal.button({ id: "rendered", title: "Rendered conversation (Super+Alt+K)", icon: "file-text", run: (tab) => {
+      if (tab.session) shows.set(tab.session, tab.show);
+      rendered(tab.session);
+    } });
+  }
+  const onShow = (e) => shows.get(e.detail)?.();
+  window.addEventListener("atlas-claude-show-tab", onShow);
+  atlas.registerCommand({
+    id: "conversation", title: "Claude: rendered conversation (formulas drawn) — again to go back", keys: "Super+Alt+K",
+    run: () => {
+      const at = document.activeElement;
+      const view = at?.closest?.(".claude-conversation");
+      if (view) { view.dispatchEvent(new Event("atlas-claude-conversation-back")); return; }
+      // in a Claude tab: what its button does (its own conversation, and the way back to that tab)
+      const term = at?.closest?.(".term-pane[data-agent-session]");
+      const button = term?.querySelector?.('.term-buttons [aria-label^="Rendered conversation"]');
+      if (button) button.click(); else rendered(term?.dataset.agentSession);
+    },
+  });
   const every = Math.max(0, Number(atlas.plugin.settings.every ?? 2));
   const first = setTimeout(() => void look(false), 3000);
   const timer = every > 0 ? setInterval(() => void look(false), every * 60_000) : null;
-  return () => { clearTimeout(first); if (timer) clearInterval(timer); };
+  return () => { clearTimeout(first); if (timer) clearInterval(timer); window.removeEventListener("atlas-claude-show-tab", onShow); };
 }

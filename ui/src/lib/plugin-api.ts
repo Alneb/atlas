@@ -20,7 +20,7 @@ import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 import type { Player } from "./player.svelte";
 
-export const PLUGIN_API_VERSION = 35;
+export const PLUGIN_API_VERSION = 36;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -57,6 +57,10 @@ export interface PluginApi {
   /** `{ beside: true }`: next to the active tab (the other split, or a new one on the right)
    *  instead of over it — a paper's PDF and its notes side by side. A PDF's `line` is its page. */
   open(path: string, line?: number, opts?: { beside?: boolean }): void;
+  /** (v36) Wikilinks as notes have them: `resolve("x#Heading")` → the vault path it points to (null: no such file; a
+   *  link drawn unresolved), `open(target, { beside? })` follows it as a click in a note does. `from`: the vault path
+   *  it is written in (relative links); default the vault's top. */
+  links: { resolve(target: string, from?: string): string | null; open(target: string, opts?: { beside?: boolean; from?: string }): Promise<void> };
   /** (v6) `path` to the phone app's own reader (a native plugin's `opens`: an .epub, a .cbz, `suwayomi:<id>/<name>`):
    *  true when the app took it; false on the desktop or in a browser — show it in the page then. */
   openNative(path: string): boolean;
@@ -275,6 +279,10 @@ export interface PluginApi {
      *  (API 23). `line(shell, program, ...args)`: a whole command line, PowerShell's `&` before a quoted program. */
     quote(arg: string, shell?: "posix" | "powershell" | "cmd"): string;
     line(shell: "posix" | "powershell" | "cmd", program: string, ...args: (string | undefined)[]): string;
+    /** (v36) A button in the corner of this plugin's own agents' terminal tabs (`[[agent]]`): `run(tab)` gets the tab
+     *  it was pressed on — `{ id, agent, session?, show() }`, `session` the tab's own id (the agent may have moved the
+     *  conversation since: its session report). `icon`: an app icon name. Removed with the plugin. */
+    button(b: { id: string; title: string; icon?: string; run(tab: import("./terminal-buttons.svelte").TerminalTab): void | Promise<void> }): () => void;
   };
   /** The file explorer (lib/file-sources.svelte.ts). `source(def)`: this plugin's places (hosts, servers) in it, one
    *  source per plugin, its local copies in `.atlas/remote/<plugin id>/`; `explore({ source?, place?, path? })` opens it

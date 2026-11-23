@@ -4,6 +4,8 @@
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
+pub mod transcript;
+
 pub const URL: &str = "https://api.anthropic.com/api/oauth/usage";
 
 /// An account: its name (the folder's) and its `.credentials.json`.

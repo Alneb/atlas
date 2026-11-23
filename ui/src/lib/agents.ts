@@ -10,6 +10,14 @@ export function agentsOn(): Agent[] {
   return plugins.list.filter(pluginOn).flatMap((p) => (p.agents ?? []).map((a) => ({ ...a, plugin: p.id, ref: `${p.id}/${a.id}` })));
 }
 
+/** The agent a terminal tab runs: the one it names, else (a tab of the "claude" preset saved without one) what the
+ *  core starts for it — the `claude` agent, else the first declared (agent_terminals.rs `for_tab`). `among`: the
+ *  agents to look in (default: every one that is on). */
+export function agentOfTab(t: { preset: string; agent?: string }, among: Agent[] = agentsOn()): Agent | undefined {
+  if (t.agent) return among.find((a) => a.ref === t.agent);
+  return t.preset === "claude" ? among.find((a) => a.id === "claude") ?? among[0] : undefined;
+}
+
 /** The agent's `send_selection` pattern filled: `{path}`, `{from}`, `{to}`. Without lines (the whole file),
  *  what lies between `{path}` and the end of `{to}` is left out (`@{path}#L{from}-{to} ` → `@notes/a.md `). */
 export function fillSelection(pattern: string, path: string, lines?: { from: number; to: number }): string {

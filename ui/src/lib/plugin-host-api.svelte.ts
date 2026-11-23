@@ -64,6 +64,7 @@ import { PLUGIN_API_VERSION, type PluginApi, type PluginPane } from "./plugin-ap
 import { wordFreq } from "./editor/word-freq";
 import { INIT_ID, own, pluginData, pluginOn, pluginSpec, plugins, type Plugin } from "./plugin-registry.svelte";
 import { addCommand } from "./plugin-commands";
+import { addTerminalButton } from "./terminal-buttons.svelte";
 
 
 /** A file as a plugin names it: a vault path as it is, else a link's target ("[[x.png]]", "x.png") resolved as a link is.
@@ -72,6 +73,9 @@ const vaultPath = async (name: string): Promise<string> => {
   const t = name.replace(/^!?\[\[|\]\]$/g, "");
   return (await import("./vault")).resolveLink(t, "") ?? t;
 };
+// …and kept once loaded, for `links.resolve`, which answers at once (the page is long up by the time a plugin draws)
+let vaultModule: typeof import("./vault") | null = null;
+void import("./vault").then((m) => { vaultModule = m; });
 
 export type ContextSnapshot = ReturnType<typeof snapshot>;
 const snapshot = () => $state.snapshot(context);
@@ -113,6 +117,10 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     openLibrary: (id) => openLibraries(id),
     data: (args) => pluginData(p.id, args),
     open: (path, line, opts) => openPath(path, line, opts),
+    links: {
+      resolve: (target, from = "") => (vaultModule?.resolveLink(String(target).split("#")[0] || "", from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "") ?? null),
+      open: (target, opts) => import("./links").then((m) => m.openWikilink(String(target), opts?.from ?? "", { beside: opts?.beside })),
+    },
     openNative: (path) => openNative(String(path)),
     openTable: (path) => { open({ kind: "table", path }); },
     openLink: (url, opts) => void (opts?.outside ? openOutside(url) : openWeb(url)),
@@ -240,6 +248,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       shell: () => terminalShell(),
       quote: (arg, shell) => quoteWord(String(arg), shell),
       line: (shell, program, ...args) => commandLine(shell, String(program), ...args),
+      button: (b) => own(p.id, addTerminalButton({ plugin: p.id, id: String(b.id), title: String(b.title), icon: b.icon && isIconName(b.icon) ? b.icon : undefined, run: (tab) => guard(p.id, `terminal button “${b.id}”`, () => b.run(tab), undefined) })),
     },
     helper: {
       call: (method, params, opts) => api.pluginHelper(p.id, method, params, opts?.timeout),

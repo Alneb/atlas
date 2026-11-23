@@ -10,7 +10,7 @@ import { open, focusOrOpen, focusPanel, nextTerminalN, closeActive, resetLayout,
 import { drawingExports, editors, lastEditorId, noteFormat, searchRequest, terminals, type TerminalHandle } from "./registry";
 import { getDock } from "./dock-instance";
 import { openLibraries } from "./libraries.svelte";
-import { agentsOn, fillSelection } from "./agents";
+import { agentOfTab, agentsOn, fillSelection } from "./agents";
 import { context, currentSelection } from "./context.svelte";
 import { extOf, openersFor, setDefaultOpener } from "./openers";
 import { openPalette, pick } from "./palette.svelte";
@@ -166,10 +166,7 @@ export async function sendToAgent(): Promise<void> {
   if (!path) { toast("Nothing to send", "Open a file, select some lines, then send them to the agent."); return; }
   const lines = sel?.text && sel.path === path ? { from: sel.from_line, to: sel.to_line } : undefined;
   const declared = agentsOn().filter((a) => a.send_selection);
-  // an agent tab's agent: the one it names, else (a tab of the "claude" preset saved without one) what the core starts
-  // for it — the `claude` agent, else the first declared (pty.rs)
-  const agentOf = (t: TerminalHandle) => t.agent ? declared.find((a) => a.ref === t.agent)
-    : t.preset === "claude" ? declared.find((a) => a.id === "claude") ?? declared[0] : undefined;
+  const agentOf = (t: TerminalHandle) => agentOfTab(t, declared);
   const sends = (t: TerminalHandle) => !!agentOf(t);
   const live = () => [...terminals].filter(([, t]) => sends(t) && t.ready()).sort(([, a], [, b]) => b.usedAt - a.usedAt)[0];
   const first = declared[0];

@@ -5,8 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+
+- Claude 0.8.1: a button on a Claude tab (or **Super+Alt+K**) shows its conversation as a chat — Markdown, formulas,
+  tables, code, `[[links]]` as in notes, tool steps folded — and goes back to the terminal; read from Claude Code's own
+  file by the plugin's helper.
+- Plugin API 36: `atlas.terminal.button` (a button on the plugin's own agent tabs) and `atlas.links.resolve` /
+  `atlas.links.open` (wikilinks as notes have them).
+
 ### Fixed
 
+- A plugin's page is shown as an app in the apps row only when the plugin has a launcher tile; other plugin pages are
+  ordinary tabs. The apps row's overflow is a quiet "⋯" with a count instead of a +.
 - With vertical tabs, the current tab stays marked while the side panel beside the editors has the keys.
 - A note's pictures have their size before they are first scrolled to (learned in the background when the note
   opens), so the first pass through a note of large figures no longer jumps.
