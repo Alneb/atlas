@@ -611,12 +611,17 @@ let sideWasInBar: boolean | undefined;
 function moveSidePanel(): void {
   const dock = getDock(), inBar = sideInBar();
   if (!dock) return;
+  // a move the person asked for (the setting changed while open) always shows the panel in its new place, even
+  // one hidden where it was; a layout restored or a first read keeps it as it was
+  const moved = sideWasInBar !== undefined && sideWasInBar !== inBar;
   if (inBar) {
     const docked = dock.panels.filter((p) => panelZone(p) === "side");
     const front = docked.find((p) => p.group.activePanel === p) ?? docked[0];
-    if (front) { const id = sideIdOf(front.params as PaneSpec), shown = front.group.api.isVisible; if (id && shown) showSide(id); else sidePanel.visible = false; }
+    const id = front ? sideIdOf(front.params as PaneSpec) : null;
+    if (moved) showSide(id ?? sidePanel.kind);
+    else if (front) { if (id && front.group.api.isVisible) showSide(id); else sidePanel.visible = false; }
     for (const p of docked) p.api.close();
-  } else if (sideWasInBar && sidePanel.visible) open(sideSpec(sidePanel.kind));
+  } else if (sideWasInBar && (moved || sidePanel.visible)) open(sideSpec(sidePanel.kind));
   sideWasInBar = inBar;
 }
 /** Super+J: the terminal panel; the shells keep running while hidden. */

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openFile } from "./open";
+import { openFile, openPalette } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // The side panel's two places (ui.side_panel): a dock column beside the editors, or the left bar,
@@ -51,6 +51,37 @@ test("the side panel moves into the left bar and back, keeping the tool that was
 
 // "the side split of the left bar gets too small when you open many things, it should just be a
 // fixed size that we can move": its height is its own, dragged by the top edge
+// A move asked for shows the panel in its new place even when it was hidden where it was (Super+B): moving it
+// out of the bar used to reopen it only if it was showing, so a hidden one went nowhere.
+test("a hidden side panel moved either way shows in its new place", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const panel = page.getByTestId("side-panel"), docked = page.locator(".dv-groupview .side-pane").filter({ visible: true });
+  const move = async () => {
+    await openPalette(page);
+    await page.keyboard.type(">move side panel");
+    await expect(page.getByTestId("palette").locator(".item.sel")).toContainText("Move side panel");
+    await page.keyboard.press("Enter");
+  };
+  await page.keyboard.press("Meta+Shift+f");
+  await expect(docked.first()).toBeVisible();
+  await page.getByTestId("side-head").getByRole("button", { name: toBar }).click();
+  await expect(panel.locator(".sp-body")).toBeVisible();
+  // hidden in the bar, then moved out: a dock column again, showing
+  await page.getByText("Finish the GW notes.").click();
+  await page.keyboard.press("Meta+b");
+  await expect(panel.locator(".sp-body")).toBeHidden();
+  await move();
+  await expect(panel).toHaveCount(0);
+  await expect(docked.first()).toBeVisible();
+  // hidden in the dock, then moved in: showing in the bar
+  await page.getByText("Finish the GW notes.").click();
+  await page.keyboard.press("Meta+b");
+  await expect(docked).toHaveCount(0);
+  await move();
+  await expect(panel.locator(".sp-body")).toBeVisible();
+});
+
 test("in the left bar the side panel keeps its height as tabs open; its top edge resizes it", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();

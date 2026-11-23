@@ -7,6 +7,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Fixed
 
+- Moving the side panel between the left bar and the dock shows it in its new place even when it was hidden
+  where it was; a hidden panel moved out of the bar used to vanish.
 - The Library's item panel: folded "Linked mentions" stood alone mid-column over blank space; folded they sit at the
   column's foot, open they follow the item and take the rest of the column (Catalog 0.16.9).
 - Scrolling fast through a note of large pictures and many formulas stuttered: a picture coming back into view was
