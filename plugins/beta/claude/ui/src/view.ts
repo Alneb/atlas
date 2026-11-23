@@ -7,7 +7,7 @@ import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { markdown } from "./md";
 
 type Block = { kind: "text"; text: string } | { kind: "thinking"; text: string } | { kind: "tool"; name: string; what: string } | { kind: "result"; text: string; error: boolean };
-type Entry = { role: "user" | "assistant" | "tool"; time: string; id: string; blocks: Block[] };
+type Entry = { role: "user" | "assistant" | "tool" | "summary"; time: string; id: string; blocks: Block[] };
 type Piece = { id: string; size: number; length: number; skipped: number; restart: boolean; more: boolean; entries: Entry[] };
 type Conversation = { id: string; modified: number; size: number; title: string };
 
@@ -52,7 +52,10 @@ const STYLE = `
   .cc-text a.internal-link { border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); cursor: pointer; }
   .cc-text a.internal-link:hover { color: var(--accent-strong, var(--accent)); border-bottom-color: var(--accent-strong, var(--accent)); text-decoration: none; }
   .cc-text a.internal-link.is-unresolved { color: var(--red, #c33); opacity: .85; }
-  .cc-text :not(pre) > code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg, var(--bg-hover)); border: 1px solid var(--border); border-radius: 5px; padding: .05em .35em; }
+  .cc-summary { align-self: stretch; margin: 6px 0; padding: 6px 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--text-muted); }
+  .cc-summary > summary { cursor: pointer; font-size: .86em; }
+  .cc-summary[open] { color: var(--text); }
+  .cc-text :not(pre) > code { overflow-wrap: anywhere; font-family: var(--font-mono); font-size: .86em; background: var(--code-bg, var(--bg-hover)); border: 1px solid var(--border); border-radius: 5px; padding: .05em .35em; }
   .cc-text blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding: 2px 12px; color: var(--text-muted); }
   .cc-text table { border-collapse: collapse; font-size: .92em; display: block; overflow-x: auto; max-width: 100%; }
   .cc-text th { background: var(--bg-hover); font-weight: 600; text-align: left; }
@@ -172,6 +175,15 @@ export default function (host: HTMLElement, atlas: PluginApi) {
   }
 
   function add(e: Entry) {
+    // the summary Claude Code wrote when it compacted the conversation: folded, a line saying where the context restarted
+    if (e.role === "summary") {
+      reply = null; steps = null;
+      const d = el("details", { className: "cc-summary", title: clock(e.time) });
+      d.append(el("summary", { textContent: "Earlier conversation, summarised (the context was compacted here)" }));
+      for (const b of e.blocks) if (b.kind === "text") d.append(text(b.text));
+      list.append(d);
+      return;
+    }
     if (e.role === "user") {
       reply = null; steps = null;
       for (const b of e.blocks) if (b.kind === "text") list.append(el("div", { className: "cc-msg cc-you", title: clock(e.time) }, [text(b.text)]));
@@ -202,6 +214,19 @@ export default function (host: HTMLElement, atlas: PluginApi) {
   const toEnd = () => { scroller.scrollTop = scroller.scrollHeight; requestAnimationFrame(() => requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; })); };
   scroller.addEventListener("scroll", () => { if (nearBottom()) jump.classList.remove("on"); });
   jump.addEventListener("click", () => { jump.classList.remove("on"); toEnd(); });
+  // the place kept when the text changes size (the tab zoomed, the window resized): at the end it stays at the end, else
+  // the first message shown stays where it was — an anchor, not a pixel offset, so messages added below never move it
+  let anchor: { end: boolean; at: Element | null; top: number } = { end: true, at: null, top: 0 };
+  const note = () => {
+    const top = scroller.getBoundingClientRect().top;
+    const at = [...list.children].find((c) => c.getBoundingClientRect().bottom > top) ?? null;
+    anchor = { end: nearBottom(), at, top: at ? at.getBoundingClientRect().top - top : 0 };
+  };
+  scroller.addEventListener("scroll", note, { passive: true });
+  new ResizeObserver(() => {
+    if (anchor.end) { scroller.scrollTop = scroller.scrollHeight; return; }
+    if (anchor.at?.isConnected) scroller.scrollTop += anchor.at.getBoundingClientRect().top - scroller.getBoundingClientRect().top - anchor.top;
+  }).observe(list);
 
   function reset() { size = 0; reply = null; steps = null; list.replaceChildren(); }
   async function read() {

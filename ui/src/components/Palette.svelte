@@ -311,9 +311,11 @@
 {/if}
 
 <style>
-  .scrim { position: fixed; inset: 0; z-index: 1000; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; animation: fade-in .1s ease-out; }
+  /* no opening animation: WebKitGTK gives an animated box a layer of its own for the animation and drops it after, which
+     flashed on every open; the bar shows at once */
+  .scrim { position: fixed; inset: 0; z-index: 1000; background: var(--scrim); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; }
   .palette { width: min(640px, calc(100vw - 32px)); background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-pop); overflow: hidden; display: flex; flex-direction: column; max-height: 64vh; animation: pop-in .14s cubic-bezier(.2, .9, .3, 1.2); }
+    box-shadow: var(--shadow-pop); overflow: hidden; display: flex; flex-direction: column; max-height: 64vh; }
   .field { display: flex; align-items: center; gap: 10px; padding: 0 14px 0 16px; height: 52px; border-bottom: 1px solid var(--border); color: var(--text-faint); flex: none; }
   .field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(15px * var(--ui-scale, 1)); }
   .field input::placeholder { color: var(--text-faint); }

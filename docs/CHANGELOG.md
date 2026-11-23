@@ -10,6 +10,17 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Settings → Vaults & sync lists, under each vault, its scheduled jobs and where each runs — here, on its server, on
   the devices, on other computers — with how the last run went (`GET /api/schedules`).
 
+### Changed
+
+- Claude 0.8.3: the rendered conversation is an ordinary tab again (zoomed with the tab, the plugin has no app tile);
+  the summary Claude Code writes when it compacts a conversation is folded, not shown as the person's message; long
+  inline code wraps; a zoom or a resize keeps the place (the end, or the message at the top).
+
+### Fixed
+
+- The command bar no longer flickers when it opens: it shows at once, with no opening animation, and its commands are
+  not redrawn when the keys reloaded on opening have not changed.
+
 ## [0.4.11] - 2026-11-23
 
 ### Added

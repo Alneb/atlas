@@ -36,8 +36,10 @@ export const keymap = $state({ overrides: {} as Record<string, string>, server: 
 
 export async function loadKeymap(): Promise<void> {
   const [k, cmds] = await Promise.all([api.keys().catch(() => ({ keys: {} })), api.commands().catch(() => [] as CommandInfo[])]);
-  keymap.overrides = k.keys;
-  keymap.server = cmds;
+  // reloaded on every open of the command bar: replaced only when changed, else the list it shows is drawn again
+  // a moment after it opened (a flicker)
+  if (JSON.stringify(k.keys) !== JSON.stringify(keymap.overrides)) keymap.overrides = k.keys;
+  if (JSON.stringify(cmds) !== JSON.stringify(keymap.server)) keymap.server = cmds;
   keymap.loaded = true;
 }
 

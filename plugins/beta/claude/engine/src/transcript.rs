@@ -100,7 +100,7 @@ fn title(file: &Path) -> String {
 
 /// A line the person typed (not a tool's answer, not a line Claude Code adds itself).
 fn said_by_person(v: &Value) -> bool {
-    v["type"] == "user" && v["isMeta"] != true && v["isSidechain"] != true && message_text(&v["message"]["content"]).is_some()
+    v["type"] == "user" && v["isMeta"] != true && v["isSidechain"] != true && v["isCompactSummary"] != true && message_text(&v["message"]["content"]).is_some()
 }
 
 /// The text parts of a message's content (a string, or blocks of which the `text` ones count).
@@ -148,8 +148,15 @@ pub fn entry(v: &Value) -> Option<Value> {
     if blocks.is_empty() {
         return None;
     }
-    // a user line that only answers tools is the tools' answer, not the person
-    let role = if role == "user" && blocks.iter().all(|b| b["kind"] == "result") { "tool" } else { role };
+    // a user line that only answers tools is the tools' answer, not the person; the summary Claude Code writes when it
+    // compacts the conversation is not the person either
+    let role = if role == "user" && blocks.iter().all(|b| b["kind"] == "result") {
+        "tool"
+    } else if v["isCompactSummary"] == true {
+        "summary"
+    } else {
+        role
+    };
     Some(json!({ "role": role, "time": v["timestamp"].as_str().unwrap_or_default(), "id": v["message"]["id"].as_str().or(v["uuid"].as_str()).unwrap_or_default(), "blocks": blocks }))
 }
 
@@ -214,10 +221,11 @@ mod tests {
             json!({ "type": "assistant", "message": { "id": "m2", "content": [{ "type": "text", "text": "It is **energy**: $$E=mc^2$$" }] } }),
             json!({ "type": "assistant", "isSidechain": true, "message": { "content": [{ "type": "text", "text": "a sub-agent" }] } }),
             json!({ "type": "mode", "mode": "x" }),
+            json!({ "type": "user", "isCompactSummary": true, "message": { "content": "This session is being continued…" } }),
         ];
         let entries: Vec<Value> = lines.iter().filter_map(entry).collect();
         let roles: Vec<&str> = entries.iter().map(|e| e["role"].as_str().unwrap()).collect();
-        assert_eq!(roles, ["user", "assistant", "assistant", "tool", "assistant"]);
+        assert_eq!(roles, ["user", "assistant", "assistant", "tool", "assistant", "summary"], "a compaction summary is not the person");
         assert_eq!(entries[2]["blocks"][0], json!({ "kind": "tool", "name": "Bash", "what": "List files" }));
         assert_eq!(entries[3]["blocks"][0]["text"], "a.md");
         assert_eq!(entries[4]["blocks"][0]["text"], "It is **energy**: $$E=mc^2$$");
@@ -231,7 +239,7 @@ mod tests {
         // pieces: whole lines, from where the last stopped; a shorter file is read again from its start
         std::fs::write(&file, format!("{text}{{\"type\":\"user\",\"mess")).unwrap();
         let p = piece(&file, 0).unwrap();
-        assert_eq!((p["size"].as_u64(), p["entries"].as_array().unwrap().len()), (Some(text.len() as u64), 5), "the half-written line waits");
+        assert_eq!((p["size"].as_u64(), p["entries"].as_array().unwrap().len()), (Some(text.len() as u64), 6), "the half-written line waits");
         std::fs::write(&file, format!("{text}{}\n", json!({ "type": "user", "message": { "content": "next" } }))).unwrap();
         let next = piece(&file, p["size"].as_u64().unwrap()).unwrap();
         assert_eq!(next["entries"][0]["blocks"][0]["text"], "next");
