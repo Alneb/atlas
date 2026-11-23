@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-11-23
+
 ### Added
 
 - Claude 0.8.2: a button on a Claude tab (or **Super+Alt+K**) shows its conversation as a chat in a pop-up — Markdown, formulas,
