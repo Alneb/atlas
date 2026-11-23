@@ -18,8 +18,8 @@ test("a note keeps its scroll when the terminal tab below it closes", async ({ p
   await expect(page.locator(".term-pane .xterm-screen").first()).toBeVisible();
   const before = await scroller.evaluate((el) => el.scrollTop);
   expect(before, "scrolled well down").toBeGreaterThan(1000);
-  await page.locator(".term-pane").first().click();
-  await page.keyboard.press("Meta+w");
+  await page.locator(".term-pane .xterm-screen").first().click();
+  await page.keyboard.press("Meta+q"); // the tab closes (as terminal-zoom.spec)
   await expect(page.locator(".term-pane")).toHaveCount(0);
   await page.waitForTimeout(300);
   expect(Math.abs((await scroller.evaluate((el) => el.scrollTop)) - before)).toBeLessThan(40);

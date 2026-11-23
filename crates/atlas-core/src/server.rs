@@ -175,19 +175,26 @@ async fn sync_conflicts_get(State(st): S, Query(q): Query<PathQuery>) -> Result<
 /// on this device's list (Settings → Vaults & sync shows one line per vault). A path not on the list is refused.
 async fn sync_state_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<crate::sync_state::SyncStatus>> {
     let root = st.ws.root().to_path_buf();
-    let asked = q.path.filter(|p| !p.is_empty());
-    Ok(Json(
-        blocking(move || {
-            let Some(p) = asked else { return Ok(crate::sync_state::status(&root)) };
-            let real = std::path::Path::new(&p).canonicalize().map_err(|e| Error::BadRequest(format!("{p}: {e}")))?;
-            let listed = real == root || crate::vaults::list(&crate::vaults::list_file()).iter().any(|v| std::path::Path::new(&v.path).canonicalize().ok().as_ref() == Some(&real));
-            if !listed {
-                return Err(Error::BadRequest(format!("{p} is not a vault on this device's list")));
-            }
-            Ok(crate::sync_state::status(&real))
-        })
-        .await?,
-    ))
+    Ok(Json(blocking(move || Ok(crate::sync_state::status(&listed_vault(root, q.path)?))).await?))
+}
+
+/// The vault a `?path=` names, or this one without it; a folder not on this device's vault list is refused, so a page
+/// reads only the vaults the person keeps here.
+fn listed_vault(root: std::path::PathBuf, asked: Option<String>) -> Result<std::path::PathBuf> {
+    let Some(p) = asked.filter(|p| !p.is_empty()) else { return Ok(root) };
+    let real = std::path::Path::new(&p).canonicalize().map_err(|e| Error::BadRequest(format!("{p}: {e}")))?;
+    let listed = real == root || crate::vaults::list(&crate::vaults::list_file()).iter().any(|v| std::path::Path::new(&v.path).canonicalize().ok().as_ref() == Some(&real));
+    if !listed {
+        return Err(Error::BadRequest(format!("{p} is not a vault on this device's list")));
+    }
+    Ok(real)
+}
+
+/// `GET /api/schedules` (schedule.rs `where_jobs`): the vault's scheduled jobs and where each runs — here, on its
+/// server, on the person's devices — with `?path=` for another vault on this device's list (Settings → Vaults & sync).
+async fn schedules_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<Vec<crate::schedule::JobWhere>>> {
+    let root = st.ws.root().to_path_buf();
+    Ok(Json(blocking(move || Ok(crate::schedule::where_jobs(&listed_vault(root, q.path)?)?)).await?))
 }
 
 fn required_path(q: PathQuery) -> Result<String> {
@@ -2780,6 +2787,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/fs/trash", post(fs_trash))
         .route("/api/sync/conflicts", get(sync_conflicts_get))
         .route("/api/sync/state", get(sync_state_get))
+        .route("/api/schedules", get(schedules_get))
         .route("/api/fs/reveal-outside", post(fs_reveal_outside))
         .route("/api/open-outside", post(open_outside_post))
         .route("/api/desktop/capture-key", get(capture_key_get).post(capture_key_post))

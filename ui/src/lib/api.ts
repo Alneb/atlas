@@ -136,6 +136,8 @@ export const api = {
   vaults: () => request<VaultList>("GET", "/api/vaults"),
   /** A vault's sync state in plain words (core sync_state.rs): this window's, or with `path` another vault on the list. */
   syncState: (path?: string) => request<import("./gen/SyncStatus").SyncStatus>("GET", "/api/sync/state", { query: { path: path || undefined } }),
+  /** A vault's scheduled jobs and where each runs (core schedule.rs `where_jobs`); `path`: another vault on this device's list. */
+  schedules: (path?: string) => request<import("./gen/JobWhere").JobWhere[]>("GET", "/api/schedules", { query: { path: path || undefined } }),
   /** This window's vault becomes the one the capture box starts on. */
   vaultActive: () => request<void>("POST", "/api/vaults/active"),
   /** This window's guest folder (core guest.rs), `null` for a vault. */

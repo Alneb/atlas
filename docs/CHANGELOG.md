@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Vaults & sync lists, under each vault, its scheduled jobs and where each runs — here, on its server, on
+  the devices, on other computers — with how the last run went (`GET /api/schedules`).
+
 ## [0.4.11] - 2026-11-23
 
 ### Added

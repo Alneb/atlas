@@ -102,6 +102,13 @@ impl Job {
             Job::Tool(t) => format!("plugin.{}.{}", t.plugin, t.tool),
         }
     }
+    /// The ids the vault's `[automation] background` may name it by, most precise first (server_role.rs `in_vault`).
+    fn ids(&self) -> Vec<String> {
+        match self {
+            Job::Command(s) => vec![s.id.clone()],
+            Job::Tool(t) => vec![self.id(), format!("plugin.{}", t.plugin)],
+        }
+    }
     fn spec(&self) -> Option<&str> {
         match self {
             Job::Command(s) => s.manifest.schedule.as_deref(),
@@ -146,17 +153,11 @@ async fn tick_at(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper:
     }
     let cache = ws.cache_dir();
     let mut recs = records(&cache);
-    let mut jobs: Vec<Job> = scripts(ws.root()).into_iter().map(Job::Command).collect();
-    if helpers.is_some() {
-        jobs.extend(crate::plugin_tools::scheduled(ws.root(), &cfg).into_iter().map(Job::Tool));
-    }
+    let mut jobs = jobs(ws.root(), &cfg, helpers.is_some());
     jobs.retain(|j| {
-        let id = j.id();
-        let plugin = match j {
-            Job::Tool(t) => format!("plugin.{}", t.plugin),
-            Job::Command(_) => String::new(),
-        };
-        crate::server_role::job_here(&cfg.automation, &host, seat, j.background(), &[&id, &plugin]).is_ok()
+        let ids = j.ids();
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        crate::server_role::job_here(&cfg.automation, &host, seat, j.background(), &ids).is_ok()
     });
     for job in jobs {
         let id = job.id();
@@ -202,6 +203,90 @@ async fn tick_at(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper:
         // after each job, not once at the end: Atlas closed during a long one must not run the ones before it again
         keep(&cache, &recs);
     }
+}
+
+/// The vault's scheduled jobs: its commands, and its plugins' scheduled tools when `tools` (only a served vault has
+/// the helpers that run them).
+fn jobs(root: &Path, cfg: &crate::config::Config, tools: bool) -> Vec<Job> {
+    let mut jobs: Vec<Job> = scripts(root).into_iter().filter(|s| s.manifest.schedule.is_some()).map(Job::Command).collect();
+    if tools {
+        jobs.extend(crate::plugin_tools::scheduled(root, cfg).into_iter().map(Job::Tool));
+    }
+    jobs
+}
+
+/// Where a scheduled job runs, seen from this core.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum JobPlace {
+    /// On this core.
+    Here,
+    /// On the vault's server (its `background = "server"`; this device's vault has a copy there).
+    Server,
+    /// On the person's devices (`background = "device"`; this core is the server).
+    Devices,
+    /// On the computers `[automation] schedules_on` names, not this one.
+    OtherComputers,
+    /// Nowhere: `[automation] run_schedules = false`.
+    Off,
+}
+
+/// One scheduled job of a vault, where it runs and how it last went (Settings → Vaults & sync, `GET /api/schedules`).
+#[derive(Debug, Clone, serde::Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct JobWhere {
+    pub id: String,
+    pub title: String,
+    /// As written: `daily 03:00`, `every 2h`.
+    pub schedule: String,
+    pub place: JobPlace,
+    /// The place in plain words.
+    pub words: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub last_run: Option<ScheduledRun>,
+}
+
+/// Every scheduled job of the vault at `root`, with where it runs as `tick` decides it on this core.
+pub fn where_jobs(root: &Path) -> anyhow::Result<Vec<JobWhere>> {
+    let cfg = crate::config::Config::load(root)?;
+    Ok(where_jobs_at(root, &cfg, &crate::platform::proc::hostname(), crate::server_role::Seat::of(root)))
+}
+
+fn where_jobs_at(root: &Path, cfg: &crate::config::Config, host: &str, seat: crate::server_role::Seat) -> Vec<JobWhere> {
+    let auto = &cfg.automation;
+    let recs = records(&root.join(".atlas/cache"));
+    jobs(root, cfg, true)
+        .into_iter()
+        .filter_map(|j| {
+            let schedule = j.spec()?.to_string();
+            let ids = j.ids();
+            let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+            let bg = j.background().in_vault(&auto.background, &ids);
+            // the same rules, in the same order, as `tick_at` and server_role::job_here
+            let place = if !auto.run_schedules {
+                JobPlace::Off
+            } else if !auto.named_here(host) {
+                JobPlace::OtherComputers
+            } else if bg.runs_at(seat) {
+                JobPlace::Here
+            } else if seat == crate::server_role::Seat::Server {
+                JobPlace::Devices
+            } else {
+                JobPlace::Server
+            };
+            let words = match place {
+                JobPlace::Here => "here".to_string(),
+                JobPlace::Server => "on the vault's server".to_string(),
+                JobPlace::Devices => "on the person's devices, never on the server".to_string(),
+                JobPlace::OtherComputers => format!("on {}", auto.schedules_on.join(", ")),
+                JobPlace::Off => "nowhere: the vault's schedules are off".to_string(),
+            };
+            let id = j.id();
+            Some(JobWhere { last_run: recs.get(&id).cloned(), title: j.title(), id, schedule, place, words })
+        })
+        .collect()
 }
 
 fn keep(cache: &Path, recs: &HashMap<String, ScheduledRun>) {
@@ -393,5 +478,43 @@ mod tests {
         }
         assert_eq!(said.len(), 2, "{said:?}");
         assert!(said[1].contains("host unknown"), "{said:?}");
+    }
+}
+
+#[cfg(test)]
+mod where_tests {
+    use super::*;
+    use crate::server_role::Seat;
+
+    /// Settings' list says where each job runs by the same rules `tick` runs it by: its `background`, the vault's word
+    /// over it, `schedules_on` and `run_schedules`.
+    #[test]
+    fn each_job_is_placed_as_tick_places_it() {
+        let d = tempfile::tempdir().unwrap();
+        let cmds = d.path().join(".atlas/commands");
+        std::fs::create_dir_all(&cmds).unwrap();
+        let cmd = |id: &str, extra: &str| std::fs::write(cmds.join(format!("{id}.toml")), format!("title = \"{id}\"\nrun = \"true\"\nschedule = \"every 2h\"\n{extra}")).unwrap();
+        cmd("anywhere", "");
+        cmd("feed", "background = \"server\"\n");
+        cmd("round", "background = \"device\"\n");
+        cmd("chosen", "background = \"server\"\n");
+        std::fs::write(cmds.join("manual.toml"), "title = \"manual\"\nrun = \"true\"\n").unwrap();
+        let mut cfg = crate::config::Config::load(d.path()).unwrap();
+        cfg.automation.background.insert("chosen".into(), crate::server_role::Background::Any);
+        let places = |cfg: &crate::config::Config, host: &str, seat| {
+            let mut v: Vec<(String, JobPlace)> = where_jobs_at(d.path(), cfg, host, seat).into_iter().map(|j| (j.id, j.place)).collect();
+            v.sort();
+            v
+        };
+        use JobPlace::*;
+        let s = |v: [(&str, JobPlace); 4]| v.map(|(a, b)| (a.to_string(), b)).to_vec();
+        assert_eq!(places(&cfg, "laptop", Seat::MirroredDevice), s([("anywhere", Here), ("chosen", Here), ("feed", Server), ("round", Here)]), "a command with no schedule is not listed");
+        assert_eq!(places(&cfg, "laptop", Seat::LoneDevice), s([("anywhere", Here), ("chosen", Here), ("feed", Here), ("round", Here)]));
+        assert_eq!(places(&cfg, "box", Seat::Server), s([("anywhere", Here), ("chosen", Here), ("feed", Here), ("round", Devices)]));
+        cfg.automation.schedules_on = vec!["desk".into()];
+        assert!(places(&cfg, "laptop", Seat::LoneDevice).iter().all(|(_, p)| *p == OtherComputers));
+        assert_eq!(where_jobs_at(d.path(), &cfg, "laptop", Seat::LoneDevice)[0].words, "on desk");
+        cfg.automation.run_schedules = false;
+        assert!(places(&cfg, "desk", Seat::LoneDevice).iter().all(|(_, p)| *p == Off));
     }
 }

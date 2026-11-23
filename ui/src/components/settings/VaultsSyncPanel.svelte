@@ -1,18 +1,21 @@
 <script lang="ts">
   // Settings → Vaults & sync: one row per vault on this device's list, each with its sync state in plain words — the
   // line core sync_state.rs writes (`words`), the same line the phone's vault list shows (Setup.java), so both apps say
-  // the same thing from one endpoint (`GET /api/sync/state`). Read again every 30 s while shown.
+  // the same thing from one endpoint (`GET /api/sync/state`). Read again every 30 s while shown. Under it, the vault's
+  // scheduled jobs and where each runs — here, on its server, on the devices (`GET /api/schedules`, the scheduler's own rules).
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
   import { errReason } from "../../lib/text";
   import type { SyncStatus } from "../../lib/gen/SyncStatus";
   import type { GuestInfo } from "../../lib/gen/GuestInfo";
+  import type { JobWhere } from "../../lib/gen/JobWhere";
+  import type { JobPlace } from "../../lib/gen/JobPlace";
   import { closeGuest } from "../../lib/guest.svelte";
   import { setAlwaysOn } from "../../lib/vaults";
 
   // `alwaysOn`: started with the app, its schedules, plugin rounds and notices going on with no window on it (null: a
   // server's page, where every vault it serves runs)
-  type Row = { name: string; path: string; current: boolean; state: SyncStatus | null; error: string; alwaysOn: boolean | null };
+  type Row = { name: string; path: string; current: boolean; state: SyncStatus | null; error: string; alwaysOn: boolean | null; jobs: JobWhere[] };
   let rows = $state<Row[]>([]);
   let error = $state("");
   /** The guest folders open now (core guest.rs), each closable here; none off the desktop. */
@@ -26,8 +29,11 @@
       rows = await Promise.all(listed.map(async (v): Promise<Row> => {
         const current = v.path === l.current;
         const alwaysOn = l.manage ? v.always_on : null;
-        try { return { name: v.name, path: v.path, current, state: await api.syncState(current ? undefined : v.path), error: "", alwaysOn }; }
-        catch (e) { return { name: v.name, path: v.path, current, state: null, error: errReason(e), alwaysOn }; }
+        const at = current ? undefined : v.path;
+        // the jobs are extra: a vault whose list cannot be read still shows its state
+        const jobs = await api.schedules(at).catch((): JobWhere[] => []);
+        try { return { name: v.name, path: v.path, current, state: await api.syncState(at), error: "", alwaysOn, jobs }; }
+        catch (e) { return { name: v.name, path: v.path, current, state: null, error: errReason(e), alwaysOn, jobs }; }
       }));
       error = "";
     } catch (e) { error = errReason(e); }
@@ -43,6 +49,14 @@
   }
   const signIn = (address: string) => window.open(`/signin/door?url=${encodeURIComponent(new URL(address).origin + "/")}`, "_blank");
   const home = (p: string) => p.replace(/^\/home\/[^/]+/, "~");
+  const PLACE: Record<JobPlace, string> = { here: "here", server: "on the server", devices: "on the devices", other_computers: "on other computers", off: "off" };
+  /** "3 here, 2 on the server" — the places in the order they come. */
+  function tally(jobs: JobWhere[]): string {
+    const n = new Map<JobPlace, number>();
+    for (const j of jobs) n.set(j.place, (n.get(j.place) ?? 0) + 1);
+    return [...n].map(([p, k]) => `${k} ${PLACE[p]}`).join(", ");
+  }
+  const ago = (ms: number) => { const m = Math.round((Date.now() - ms) / 60_000); return m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 </script>
 
 <section class="settings-panel vaults-sync" data-testid="vaults-sync">
@@ -63,6 +77,19 @@
           <button class="switch" class:on={r.alwaysOn} role="switch" aria-checked={r.alwaysOn} aria-label="Keep {r.name} running in the background" data-testid="vault-always-on" onclick={() => void toggleAlwaysOn(r)}><span></span></button>
           <span class="muted">{r.alwaysOn ? "Always on: starts with Atlas; its schedules, plugins and notices run with no window on it" : "Starts when opened: nothing of it runs in the background until then"}</span>
         </div>
+      {/if}
+      {#if r.jobs.length}
+        <details class="jobs" data-testid="vault-jobs">
+          <summary>Background jobs: {tally(r.jobs)}</summary>
+          {#each r.jobs as j (j.id)}
+            <div class="job" data-testid="vault-job" data-place={j.place}>
+              <span class="title">{j.title}</span>
+              <span class="muted">{j.schedule}</span>
+              <span class="place {j.place}">{j.words}</span>
+              {#if j.last_run}<span class="muted" class:bad={!j.last_run.ok} title={j.last_run.summary}>{j.last_run.ok ? "ran" : "failed"} {ago(j.last_run.time)}</span>{/if}
+            </div>
+          {/each}
+        </details>
       {/if}
     </div>
   {:else}
@@ -94,4 +121,11 @@
   .line.failure { color: var(--red); }
   .bad { color: var(--red); }
   .always { display: flex; gap: 8px; align-items: center; font-size: calc(12.5px * var(--ui-scale, 1)); }
+  .jobs { font-size: calc(12.5px * var(--ui-scale, 1)); width: 100%; }
+  .jobs summary { cursor: pointer; color: var(--text-muted, var(--text-faint)); }
+  .job { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; padding: 2px 0 2px 16px; }
+  .job .title { color: var(--text); }
+  .place { padding: 0 6px; border-radius: 8px; background: var(--bg-hover, var(--bg-alt)); }
+  .place.here { color: var(--green); }
+  .place.off { color: var(--text-faint); }
 </style>
