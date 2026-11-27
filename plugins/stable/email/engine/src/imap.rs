@@ -172,13 +172,14 @@ impl Imap {
                     .map_err(|_| Fail::connection(format!("{host} did not answer the sign-in")))?
                     .map_err(|(e, _)| sign_in_failed(host, e, refused))?
             }
-            Auth::Outlook { .. } => {
-                let tok = token.ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…”"))?;
+            Auth::Outlook { .. } | Auth::Google { .. } => {
+                let service = acc.auth.service();
+                let tok = token.ok_or_else(|| Fail::sign_in(format!("not signed in to {service}: use the card's Sign in button")))?;
                 let auth = XOAuth2(format!("user={}\x01auth=Bearer {}\x01\x01", acc.user, tok));
                 tokio::time::timeout(TIMEOUT, client.authenticate("XOAUTH2", auth))
                     .await
                     .map_err(|_| Fail::connection(format!("{host} did not answer the sign-in")))?
-                    .map_err(|(e, _)| sign_in_failed(host, e, |_, why| format!("Outlook's mail server refused the token ({why})")))?
+                    .map_err(|(e, _)| sign_in_failed(host, e, |_, why| format!("{service}'s mail server refused the token ({why})")))?
             }
         };
         let mut me = Imap { s: session, caps: HashSet::new(), account: acc.name.clone(), selected: None };

@@ -1,17 +1,19 @@
 <script lang="ts">
-  // Outlook's sign-in in one dialog (view.ts, arg signinDialog(…)), the way Thunderbird does it (the card's flow):
+  // Outlook's and Gmail's sign-in in one dialog (view.ts, arg signinDialog(…)), the way Thunderbird does it (the card's flow):
   // automatic — Microsoft's page in the user's own browser, the answer caught on localhost by the engine; code — a
   // device code typed at microsoft.com/devicelogin, shown here with a copy button; window — Atlas's sign-in window,
   // whose return address finishes it (pasted in the box here, in a browser). The engine keeps the refresh token in
-  // Atlas's secret store (oauth.rs). The account is chosen here when several sign in with Outlook.
+  // Atlas's secret store (oauth.rs). The account is chosen here when several sign in with a provider's page.
   import { untrack } from "svelte";
   import { call, type PluginApi } from "./api";
 
   type Card = { name: string; auth?: string; user?: string };
   let { atlas, account: given, record, onclose }: { atlas: PluginApi; account?: string; record?: Card; onclose: () => void } = $props();
 
-  const outlook = untrack(() => ((atlas.plugin.settings.accounts as Card[] | undefined) ?? []).filter((c) => c?.name && c.auth === "outlook"));
+  const outlook = untrack(() => ((atlas.plugin.settings.accounts as Card[] | undefined) ?? []).filter((c) => c?.name && (c.auth === "outlook" || c.auth === "google")));
   let account = $state(untrack(() => given ?? record?.name ?? (outlook.length === 1 ? outlook[0].name : "")));
+  /** whose page the person signs in on: the chosen card's provider */
+  const provider = $derived((record?.name === account ? record : outlook.find((c) => c.name === account))?.auth === "google" ? "Google" : "Microsoft");
 
   type Step =
     | { kind: "choose" }
@@ -68,7 +70,7 @@
 <div class="si">
   {#if step.kind === "choose"}
     {#if !outlook.length}
-      <p>No account signs in with Outlook: set one's Sign-in to <b>outlook</b> in Email's settings.</p>
+      <p>No account signs in on a provider's page: set one's Sign-in to <b>outlook</b> or <b>google</b> in Email's settings.</p>
       <div class="go"><button onclick={() => atlas.plugin.openSettings()}>Open Email's settings</button></div>
     {:else}
       <p>Which account?</p>
@@ -79,13 +81,13 @@
       </ul>
     {/if}
   {:else if step.kind === "starting"}
-    <p class="hint">Asking Microsoft for a sign-in for {account}…</p>
+    <p class="hint">Asking {provider} for a sign-in for {account}…</p>
   {:else if step.kind === "waiting"}
     {#if step.flow === "code"}
       <p>On the Microsoft page, type this code and sign in as <b>{account}</b>:</p>
       <div class="code"><span>{step.code}</span><button onclick={() => copy(step.kind === "waiting" ? step.code ?? "" : "")}>{step.copied ? "Copied" : "Copy"}</button></div>
     {:else if step.flow === "automatic"}
-      <p>Sign in as <b>{account}</b> on the Microsoft page in your browser.</p>
+      <p>Sign in as <b>{account}</b> on the {provider} page in your browser.</p>
     {:else}
       <p>Sign in as <b>{account}</b> in the window that opened.</p>
     {/if}
@@ -95,8 +97,8 @@
         <button type="submit" disabled={!pasted.trim()}>Finish</button>
       </form>
     {:else}
-      <p class="hint"><span class="dot"></span>Atlas finishes by itself when Microsoft sends you back.</p>
-      <div class="go"><button onclick={() => step.kind === "waiting" && open(step.url)}>Open the Microsoft page again</button></div>
+      <p class="hint"><span class="dot"></span>Atlas finishes by itself when {provider} sends you back.</p>
+      <div class="go"><button onclick={() => step.kind === "waiting" && open(step.url)}>Open the {provider} page again</button></div>
     {/if}
   {:else if step.kind === "done"}
     <p class="ok">Signed in: {account}'s mail can be read now.</p>

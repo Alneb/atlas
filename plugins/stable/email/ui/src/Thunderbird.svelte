@@ -22,7 +22,7 @@
     try {
       cards = [...cards, f.record];
       await atlas.plugin.saveSettings({ accounts: cards });
-      added[i] = f.record.auth === "outlook" ? "Added: now “Sign in to Outlook” on its card." : "Added: now type its password on its card (an app password for Gmail).";
+      added[i] = f.record.auth === "outlook" ? "Added: now its card's Sign in button." : "Added: now type its password on its card (an app password for Gmail).";
     } catch (e) {
       cards = cards.filter((c) => c !== f.record);
       added[i] = `Not added: ${(e as Error).message ?? e}`;

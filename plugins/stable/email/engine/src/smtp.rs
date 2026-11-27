@@ -81,9 +81,10 @@ pub async fn send(acc: &Account, token: Option<String>, from: &str, to: &[String
     let auths: Vec<String> = caps.iter().filter_map(|l| l.to_uppercase().strip_prefix("AUTH").map(|a| a.trim_start_matches(['=', ' ']).to_string())).flat_map(|a| a.split_whitespace().map(String::from).collect::<Vec<_>>()).collect();
     let b64 = |s: &str| base64::engine::general_purpose::STANDARD.encode(s.as_bytes());
     match &acc.auth {
-        Auth::Outlook { .. } => {
-            let tok = token.ok_or("not signed in to Outlook: run “Email: sign in to Outlook…”")?;
-            c.expect(&format!("AUTH XOAUTH2 {}", b64(&format!("user={}\x01auth=Bearer {tok}\x01\x01", acc.user))), 235, "the sign-in").await.map_err(|e| format!("{e} — sign in to Outlook again"))?;
+        Auth::Outlook { .. } | Auth::Google { .. } => {
+            let service = acc.auth.service();
+            let tok = token.ok_or_else(|| format!("not signed in to {service}: use the card's Sign in button"))?;
+            c.expect(&format!("AUTH XOAUTH2 {}", b64(&format!("user={}\x01auth=Bearer {tok}\x01\x01", acc.user))), 235, "the sign-in").await.map_err(|e| format!("{e} — sign in to {service} again"))?;
         }
         Auth::Password(pw) if !auths.is_empty() => {
             if pw.is_empty() {

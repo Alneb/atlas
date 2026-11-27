@@ -166,8 +166,10 @@
       // and stopped them, so a terminal never zoomed
       if (zoomChord(e)) return false;
       if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey || e.altKey) return true;
-      if (e.code === "KeyC") { copySel(); return false; }
-      if (e.code === "KeyV") { pasteIn(); return false; }
+      // cancelled as well as kept from xterm (`false` only does the latter): left alone, the browser's own Ctrl+Shift+V
+      // pastes into xterm's textarea too, and the text arrived twice
+      if (e.code === "KeyC") { e.preventDefault(); copySel(); return false; }
+      if (e.code === "KeyV") { e.preventDefault(); pasteIn(); return false; }
       return true;
     });
     // OSC 10 / 11 "what are your colours?": answered with the theme's own, so a program that picks

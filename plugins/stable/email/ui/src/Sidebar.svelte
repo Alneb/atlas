@@ -97,7 +97,7 @@
       {#if a.error || a.status?.state === "error"}
         <div class="err" role="alert">
           <span>{#if !a.error && a.status?.trouble === "sign-in"}<b>Sign-in needed.</b> {/if}{a.error ?? a.status?.error}</span>
-          {#if a.outlook}<button class="link" onclick={() => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: a.name }))}>Sign in…</button>{/if}
+          {#if a.outlook || a.google}<button class="link" onclick={() => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: a.name }))}>Sign in…</button>{/if}
           <button class="link" onclick={() => mail.atlas.plugin.openSettings()}>Settings…</button>
         </div>
       {/if}

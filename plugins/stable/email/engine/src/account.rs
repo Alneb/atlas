@@ -8,6 +8,13 @@ pub const OUTLOOK_IMAP: (&str, u16) = ("outlook.office365.com", 993);
 pub const OUTLOOK_SMTP: (&str, u16) = ("smtp.office365.com", 587);
 /// Thunderbird's public client id: used when the card names none (many organisations allow it; checked 2026-10-15).
 pub const THUNDERBIRD_CLIENT: &str = "9e5f94bc-e8a4-4e73-b8be-63364c29d753";
+/// Gmail / Google Workspace: fixed servers, signed in with OAuth2 as Thunderbird does (no app password).
+pub const GMAIL_IMAP: (&str, u16) = ("imap.gmail.com", 993);
+pub const GMAIL_SMTP: (&str, u16) = ("smtp.gmail.com", 465);
+/// Thunderbird's public Google application (an "installed app": its secret is public by design, as in Thunderbird's
+/// own source, OAuth2Providers). Used when the card names none; a card may name its own Google Cloud client.
+pub const THUNDERBIRD_GOOGLE_CLIENT: &str = "406964657835-aq8lmia8j95dhl1a2bvharmfk3t1hgqj.apps.googleusercontent.com";
+pub const THUNDERBIRD_GOOGLE_SECRET: &str = "kSmqreRr0qwBWJgbf5Y-PNpK";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Security {
@@ -21,6 +28,23 @@ pub enum Security {
 pub enum Auth {
     Password(String),
     Outlook { tenant: String, client_id: String, refresh: Option<String> },
+    /// Gmail: the same sign-in also grants Google Calendar (the Calendar plugin's token, `calendar_token`).
+    Google { client_id: String, client_secret: String, refresh: Option<String> },
+}
+
+impl Auth {
+    /// Signed in with a token (XOAUTH2), not a password.
+    pub fn is_oauth(&self) -> bool {
+        !matches!(self, Auth::Password(_))
+    }
+    /// The service's name, for what the person reads ("sign in to Gmail").
+    pub fn service(&self) -> &'static str {
+        match self {
+            Auth::Password(_) => "the mail server",
+            Auth::Outlook { .. } => "Outlook",
+            Auth::Google { .. } => "Gmail",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,6 +144,7 @@ pub fn pick(params: &Value) -> Result<Account, String> {
 fn of_card(params: &Value, c: &Value, main: bool) -> Result<Account, String> {
     let name = s(c, "name").to_string();
     let outlook = s(c, "auth") == "outlook";
+    let google = s(c, "auth") == "google";
     let security = match s(c, "security") {
         "starttls" => Security::StartTls,
         "none" => Security::None,
@@ -133,6 +158,18 @@ fn of_card(params: &Value, c: &Value, main: bool) -> Result<Account, String> {
             Server { host: OUTLOOK_IMAP.0.into(), port: OUTLOOK_IMAP.1, security: Security::Tls },
             Server { host: OUTLOOK_SMTP.0.into(), port: OUTLOOK_SMTP.1, security: Security::StartTls },
             Auth::Outlook { tenant, client_id, refresh: secret(params, &name, "oauth_refresh") },
+        )
+    } else if google {
+        let own = Some(s(c, "client_id")).filter(|t| !t.is_empty());
+        // a client of the card's own needs its own secret; Thunderbird's goes with Thunderbird's
+        let (client_id, client_secret) = match own {
+            Some(id) => (id.to_string(), s(c, "client_secret").to_string()),
+            None => (THUNDERBIRD_GOOGLE_CLIENT.to_string(), THUNDERBIRD_GOOGLE_SECRET.to_string()),
+        };
+        (
+            Server { host: GMAIL_IMAP.0.into(), port: GMAIL_IMAP.1, security: Security::Tls },
+            Server { host: GMAIL_SMTP.0.into(), port: GMAIL_SMTP.1, security: Security::Tls },
+            Auth::Google { client_id, client_secret, refresh: secret(params, &name, "oauth_refresh") },
         )
     } else {
         let host = s(c, "imap_host").to_string();
@@ -175,12 +212,16 @@ mod tests {
             "settings": { "accounts": [
                 { "name": "gmail", "user": "me@gmail.example", "imap_host": "imap.gmail.com", "smtp_host": "smtp.gmail.com", "smtp_port": "465", "aliases": "me@alias.example, Other <o@x.example>" },
                 { "name": "uni", "auth": "outlook", "user": "me@uni.example.org", "claude": "never" },
+                { "name": "g", "auth": "google", "user": "me@gmail.example" },
                 { "name": "" }
             ]},
             "secrets": { "accounts.gmail.password": "pw", "accounts.uni.oauth_refresh": "rt" }
         });
         let all: Vec<_> = all(&p).into_iter().map(Result::unwrap).collect();
-        assert_eq!(all.len(), 2, "a card without a name is no account");
+        assert_eq!(all.len(), 3, "a card without a name is no account");
+        let gg = &all[2];
+        assert_eq!((gg.imap.host.as_str(), gg.smtp.port, gg.smtp.security), ("imap.gmail.com", 465, Security::Tls));
+        assert_eq!(gg.auth, Auth::Google { client_id: THUNDERBIRD_GOOGLE_CLIENT.into(), client_secret: THUNDERBIRD_GOOGLE_SECRET.into(), refresh: None });
         let g = &all[0];
         assert!(g.main);
         assert_eq!((g.imap.port, g.imap.security), (993, Security::Tls));

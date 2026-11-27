@@ -1,7 +1,8 @@
-//! Outlook / Microsoft 365 sign-in (OAuth2, as Thunderbird does): the access token IMAP and SMTP sign in with, renewed
-//! from the refresh token kept in Atlas's secret store; and the three ways to get that refresh token (the card's
-//! `flow`): automatic, window (Atlas's sign-in
-//! window, ending on https://localhost) and code (a device code typed at microsoft.com/devicelogin).
+//! Outlook / Microsoft 365 and Gmail sign-in (OAuth2, as Thunderbird does): the access token IMAP and SMTP sign in
+//! with, renewed from the refresh token kept in Atlas's secret store; and the ways to get that refresh token (the
+//! card's `flow`): automatic (the person's browser, caught on a loopback port), window (Atlas's sign-in window, ending
+//! on https://localhost) and, for Microsoft only, code (a device code typed at microsoft.com/devicelogin; Google's
+//! device flow does not grant mail). The two providers differ only in an [`Idp`]: endpoints, scopes, the application.
 //! HTTPS goes through the core's fetch (the manifest's `net`), so the engine carries no HTTP client.
 
 use crate::account::{Account, Auth};
@@ -19,15 +20,101 @@ pub const SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https
 /// application has it), so the refresh token IMAP uses is redeemed for it with no second sign-in.
 pub const EWS_SCOPES: &str = "https://outlook.office.com/EWS.AccessAsUser.All offline_access";
 const WINDOW_REDIRECT: &str = "https://localhost";
+/// Gmail over IMAP/SMTP, and Google Calendar over CalDAV on the same sign-in (the Calendar plugin's token).
+pub const GOOGLE_SCOPES: &str = "https://mail.google.com/ https://www.googleapis.com/auth/calendar";
 
-/// How a form is POSTed to Microsoft (the core's fetch in the helper; a stand-in in tests).
+/// Where an account signs in: its provider's endpoints, the application it signs in as, what it asks for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Idp {
+    /// The provider's name, for what the person reads.
+    pub name: &'static str,
+    token_url: String,
+    authorize_url: String,
+    client: String,
+    /// Google's installed applications send their (public) secret; Microsoft's public clients have none.
+    secret: Option<String>,
+    /// What a sign-in asks for (mail; Google's also the calendar).
+    scopes: &'static str,
+    /// Microsoft names the scope again on each renewal (one refresh token, a token per scope); Google renews the
+    /// whole grant.
+    scope_on_renewal: bool,
+    /// Microsoft's device-code endpoint (the `code` flow); Google's does not grant mail.
+    device_url: Option<String>,
+    /// Extra query of the authorization address: Google's offline access, so a refresh token comes back.
+    authorize_extra: &'static [(&'static str, &'static str)],
+}
+
+impl Idp {
+    fn microsoft(tenant: &str, client: &str) -> Idp {
+        let base = format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0");
+        Idp {
+            name: "Outlook",
+            token_url: format!("{base}/token"),
+            authorize_url: format!("{base}/authorize"),
+            client: client.into(),
+            secret: None,
+            scopes: SCOPES,
+            scope_on_renewal: true,
+            device_url: Some(format!("{base}/devicecode")),
+            authorize_extra: &[("response_mode", "query")],
+        }
+    }
+    fn google(client: &str, secret: &str) -> Idp {
+        Idp {
+            name: "Gmail",
+            token_url: "https://oauth2.googleapis.com/token".into(),
+            authorize_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
+            client: client.into(),
+            secret: Some(secret.to_string()).filter(|s| !s.is_empty()),
+            scopes: GOOGLE_SCOPES,
+            scope_on_renewal: false,
+            device_url: None,
+            authorize_extra: &[("access_type", "offline"), ("prompt", "consent")],
+        }
+    }
+    /// An account's provider (None: a password account).
+    pub fn of(auth: &Auth) -> Option<Idp> {
+        match auth {
+            Auth::Password(_) => None,
+            Auth::Outlook { tenant, client_id, .. } => Some(Idp::microsoft(tenant, client_id)),
+            Auth::Google { client_id, client_secret, .. } => Some(Idp::google(client_id, client_secret)),
+        }
+    }
+    /// A card's provider, as `account.rs` reads it (its own application, else Thunderbird's).
+    fn of_card(card: &Value) -> Result<Idp, String> {
+        let s = |k: &str| card.get(k).and_then(Value::as_str).unwrap_or("").trim().to_string();
+        match s("auth").as_str() {
+            "outlook" => {
+                let tenant = Some(s("tenant")).filter(|t| !t.is_empty()).unwrap_or_else(|| "common".into());
+                let client = Some(s("client_id")).filter(|t| !t.is_empty()).unwrap_or_else(|| crate::account::THUNDERBIRD_CLIENT.into());
+                Ok(Idp::microsoft(&tenant, &client))
+            }
+            "google" => Ok(match Some(s("client_id")).filter(|t| !t.is_empty()) {
+                Some(own) => Idp::google(&own, &s("client_secret")),
+                None => Idp::google(crate::account::THUNDERBIRD_GOOGLE_CLIENT, crate::account::THUNDERBIRD_GOOGLE_SECRET),
+            }),
+            _ => Err(format!("{} signs in with a password: set its Sign-in to outlook or google first", s("name"))),
+        }
+    }
+    /// The form that redeems `grant` at the token endpoint, with the application's id (and secret).
+    fn form<'a>(&'a self, grant: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
+        let mut f = vec![("client_id", self.client.as_str())];
+        if let Some(sec) = &self.secret {
+            f.push(("client_secret", sec.as_str()));
+        }
+        f.extend_from_slice(grant);
+        f
+    }
+}
+
+/// How a form is POSTed to the provider (the core's fetch in the helper; a stand-in in tests).
 pub type Post = dyn Fn(&str, &[(&str, &str)]) -> Result<Value, String> + Send + Sync;
 
 /// The core's fetch: `POST /api/plugins/email/fetch`.
 pub fn core_post(url: &str, form: &[(&str, &str)]) -> Result<Value, String> {
     let body = form.iter().map(|(k, v)| format!("{}={}", enc(k), enc(v))).collect::<Vec<_>>().join("&");
     let req = json!({ "url": url, "method": "POST", "headers": { "content-type": "application/x-www-form-urlencoded", "accept": "application/json" }, "body": body, "timeout_secs": 30 });
-    let a = atlas_plugin::Atlas::new().post("/api/plugins/email/fetch", &req).map_err(|e| format!("cannot reach Microsoft: {e}"))?;
+    let a = atlas_plugin::Atlas::new().post("/api/plugins/email/fetch", &req).map_err(|e| format!("cannot reach the sign-in: {e}"))?;
     let text = a["text"].as_str().unwrap_or("{}");
     Ok(serde_json::from_str(text).unwrap_or(json!({ "error": "no_json", "error_description": text })))
 }
@@ -79,9 +166,13 @@ const REFUSALS: &[(&[&str], &str)] = &[
     (&["AADSTS50011"], "the return address is not allowed for this Application ID"),
     (&["AADSTS70008", "AADSTS700082", "invalid_grant"], "the sign-in has expired or was revoked: sign in again"),
     (&["access_denied"], "the sign-in was cancelled"),
+    // Google's
+    (&["disallowed_useragent"], "Google refuses a sign-in inside an app's window: set the card's Sign-in flow to automatic (your own browser)"),
+    (&["admin_policy_enforced", "org_internal"], "your Google Workspace administrator does not allow this mail app: ask them, or put a Google Cloud client of your own on the card"),
+    (&["invalid_client", "unauthorized_client"], "Google does not accept this application: put a Google Cloud client of your own on the card (README.md)"),
 ];
 
-/// Why Microsoft said no, said plainly (a token answer and a return address both carry `error` and `error_description`).
+/// Why the provider said no, said plainly (a token answer and a return address both carry `error` and `error_description`).
 pub fn refused(answer: &Value) -> String {
     let desc = answer["error_description"].as_str().unwrap_or("");
     let err = answer["error"].as_str().unwrap_or("");
@@ -124,18 +215,21 @@ pub fn access_token(acc: &Account, post: &Post) -> Result<Option<String>, Fail> 
 /// An access token for `scopes` from the account's refresh token (None for a password account). Cached per refresh
 /// token and scopes until a minute before it ends.
 pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Option<String>, Fail> {
-    let Auth::Outlook { tenant, client_id, .. } = &acc.auth else { return Ok(None) };
+    let Some(idp) = Idp::of(&acc.auth) else { return Ok(None) };
     let key = refresh_key(acc);
-    let refresh = current_refresh(acc).ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)"))?;
+    let refresh = current_refresh(acc).ok_or_else(|| Fail::sign_in(format!("not signed in to {}: use the card's Sign in button", idp.name)))?;
     let cache = |r: &str| format!("{scopes}\n{r}");
     if let Some(c) = TOKENS.lock().unwrap().get(&cache(&refresh)) {
         if Instant::now() + Duration::from_secs(60) < c.until {
             return Ok(Some(c.token.clone()));
         }
     }
-    let url = format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token");
-    let j = post(&url, &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", &refresh), ("scope", scopes)]).map_err(|e| Fail::connection(format!("cannot reach Microsoft's sign-in: {e}")))?;
-    let token = j["access_token"].as_str().ok_or_else(|| renewal_refused(&j))?.to_string();
+    let mut grant = vec![("grant_type", "refresh_token"), ("refresh_token", refresh.as_str())];
+    if idp.scope_on_renewal {
+        grant.push(("scope", scopes));
+    }
+    let j = post(&idp.token_url, &idp.form(&grant)).map_err(|e| Fail::connection(format!("cannot reach {}'s sign-in: {e}", idp.name)))?;
+    let token = j["access_token"].as_str().ok_or_else(|| renewal_refused(&idp, &j))?.to_string();
     let until = Instant::now() + Duration::from_secs(j["expires_in"].as_u64().unwrap_or(3600));
     if let Some(new) = j["refresh_token"].as_str().filter(|n| *n != refresh) {
         ROTATED.lock().unwrap().insert(key.clone(), new.to_string());
@@ -152,7 +246,7 @@ fn refresh_key(acc: &Account) -> String {
 
 /// The account's refresh token: the one Microsoft rotated last, else the stored one.
 fn current_refresh(acc: &Account) -> Option<String> {
-    let Auth::Outlook { refresh, .. } = &acc.auth else { return None };
+    let (Auth::Outlook { refresh, .. } | Auth::Google { refresh, .. }) = &acc.auth else { return None };
     ROTATED.lock().unwrap().get(&refresh_key(acc)).cloned().or_else(|| refresh.clone())
 }
 
@@ -166,18 +260,18 @@ pub fn forget(acc: &Account) {
 
 /// A renewal Microsoft did not grant: its own trouble (down, or an answer that is no JSON: a proxy, a captive portal)
 /// is the connection's; anything else is about the sign-in itself (expired, revoked, blocked by the organisation).
-fn renewal_refused(answer: &Value) -> Fail {
+fn renewal_refused(idp: &Idp, answer: &Value) -> Fail {
     match answer["error"].as_str() {
-        Some("temporarily_unavailable" | "server_error" | "no_json") => Fail::connection(format!("Microsoft's sign-in is not answering ({})", refused(answer))),
-        _ => Fail::sign_in(format!("Outlook refused the sign-in ({}): sign in again", refused(answer))),
+        Some("temporarily_unavailable" | "server_error" | "no_json") => Fail::connection(format!("{}'s sign-in is not answering ({})", idp.name, refused(answer))),
+        _ => Fail::sign_in(format!("{} refused the sign-in ({}): sign in again", idp.name, refused(answer))),
     }
 }
 
 /// A sign-in under way (one at a time, as in Thunderbird).
 enum Pending {
-    Automatic { account: String, tenant: String, client: String, verifier: String, redirect: String, answer: Answer },
-    Window { account: String, tenant: String, client: String, verifier: String },
-    Code { account: String, tenant: String, client: String, device_code: String, interval: u64, until: Instant },
+    Automatic { account: String, idp: Idp, verifier: String, redirect: String, answer: Answer },
+    Window { account: String, idp: Idp, verifier: String },
+    Code { account: String, idp: Idp, device_code: String, interval: u64, until: Instant },
 }
 static PENDING: LazyLock<Mutex<Option<Pending>>> = LazyLock::new(Default::default);
 
@@ -191,19 +285,32 @@ fn pkce() -> (String, String) {
     (verifier, challenge)
 }
 
-fn authorize_url(tenant: &str, client: &str, redirect: &str, user: &str, challenge: &str, more: &[(&str, &str)]) -> String {
+fn authorize_url(idp: &Idp, redirect: &str, user: &str, challenge: &str, more: &[(&str, &str)]) -> String {
     let mut q = vec![
-        ("client_id", client),
+        ("client_id", idp.client.as_str()),
         ("response_type", "code"),
         ("redirect_uri", redirect),
-        ("response_mode", "query"),
-        ("scope", SCOPES),
+        ("scope", idp.scopes),
         ("code_challenge", challenge),
         ("code_challenge_method", "S256"),
         ("login_hint", user),
     ];
-    q.extend_from_slice(more);
-    format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize?{}", q.iter().map(|(k, v)| format!("{k}={}", enc(v))).collect::<Vec<_>>().join("&"))
+    q.extend_from_slice(idp.authorize_extra);
+    // a `prompt` asked for here joins the provider's own (Google's consent: `consent select_account`)
+    let mut prompt = q.iter().find(|(k, _)| *k == "prompt").map(|(_, v)| v.to_string());
+    for (k, v) in more {
+        if *k == "prompt" {
+            prompt = Some(prompt.map_or(v.to_string(), |p| format!("{p} {v}")));
+        } else {
+            q.push((k, v));
+        }
+    }
+    q.retain(|(k, _)| *k != "prompt");
+    let prompt = prompt.unwrap_or_default();
+    if !prompt.is_empty() {
+        q.push(("prompt", &prompt));
+    }
+    format!("{}?{}", idp.authorize_url, q.iter().map(|(k, v)| format!("{k}={}", enc(v))).collect::<Vec<_>>().join("&"))
 }
 
 /// The user's own browser, opened by the helper (a page's window.open needs a click in WebKitGTK).
@@ -214,26 +321,22 @@ pub fn open_browser(url: &str) -> bool {
     std::process::Command::new("xdg-open").arg(url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().is_ok()
 }
 
-/// Starts the sign-in of an Outlook card, by its flow → what the page shows (a URL to open, a code to type).
+/// Starts the sign-in of an Outlook or Gmail card, by its flow → what the page shows (a URL to open, a code to type).
 pub fn start(card: &Value, post: &Post) -> Result<Value, String> {
     let s = |k: &str| card.get(k).and_then(Value::as_str).unwrap_or("").trim().to_string();
     let account = s("name");
-    if s("auth") != "outlook" {
-        return Err(format!("{account} signs in with a password: set its Sign-in to outlook first"));
-    }
-    let tenant = Some(s("tenant")).filter(|t| !t.is_empty()).unwrap_or_else(|| "common".into());
-    let client = Some(s("client_id")).filter(|t| !t.is_empty()).unwrap_or_else(|| crate::account::THUNDERBIRD_CLIENT.into());
+    let idp = Idp::of_card(card)?;
     let user = s("user");
     *PENDING.lock().unwrap() = None;
     match s("flow").as_str() {
         "code" => {
-            let j = post(&format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode"), &[("client_id", &client), ("scope", SCOPES)])?;
+            let device = idp.device_url.clone().ok_or_else(|| format!("{} has no code sign-in for mail: choose the automatic or window flow on the card", idp.name))?;
+            let j = post(&device, &idp.form(&[("scope", idp.scopes)]))?;
             let device_code = j["device_code"].as_str().ok_or_else(|| format!("Microsoft refused: {}", refused(&j)))?.to_string();
             let url = j["verification_uri"].as_str().unwrap_or("https://microsoft.com/devicelogin").to_string();
             *PENDING.lock().unwrap() = Some(Pending::Code {
                 account,
-                tenant,
-                client,
+                idp,
                 device_code,
                 interval: j["interval"].as_u64().unwrap_or(5),
                 until: Instant::now() + Duration::from_secs(j["expires_in"].as_u64().unwrap_or(900)),
@@ -242,8 +345,8 @@ pub fn start(card: &Value, post: &Post) -> Result<Value, String> {
         }
         "window" => {
             let (verifier, challenge) = pkce();
-            let url = authorize_url(&tenant, &client, WINDOW_REDIRECT, &user, &challenge, &[("prompt", "select_account")]);
-            *PENDING.lock().unwrap() = Some(Pending::Window { account, tenant, client, verifier });
+            let url = authorize_url(&idp, WINDOW_REDIRECT, &user, &challenge, &[("prompt", "select_account")]);
+            *PENDING.lock().unwrap() = Some(Pending::Window { account, idp, verifier });
             Ok(json!({ "flow": "window", "redirect": WINDOW_REDIRECT, "url": url }))
         }
         _ => {
@@ -251,14 +354,14 @@ pub fn start(card: &Value, post: &Post) -> Result<Value, String> {
             let state = format!("{:x}", rand::random::<u128>());
             let (port, answer) = catch(&state)?;
             let redirect = format!("http://localhost:{port}");
-            let url = authorize_url(&tenant, &client, &redirect, &user, &challenge, &[("state", &state)]);
-            *PENDING.lock().unwrap() = Some(Pending::Automatic { account, tenant, client, verifier, redirect, answer });
+            let url = authorize_url(&idp, &redirect, &user, &challenge, &[("state", &state)]);
+            *PENDING.lock().unwrap() = Some(Pending::Automatic { account, idp, verifier, redirect, answer });
             Ok(json!({ "flow": "automatic", "url": url, "opened": open_browser(&url) }))
         }
     }
 }
 
-/// A one-answer web server on a free loopback port: the browser's return from Microsoft, checked by its state.
+/// A one-answer web server on a free loopback port: the browser's return from the provider, checked by its state.
 fn catch(state: &str) -> Result<(u16, Answer), String> {
     let l4 = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| format!("cannot listen on localhost: {e}"))?;
     let port = l4.local_addr().map_err(|e| e.to_string())?.port();
@@ -303,39 +406,37 @@ fn catch(state: &str) -> Result<(u16, Answer), String> {
 /// window flow ended on (caught by the app, or pasted). `wait`: seconds to wait for the browser.
 pub fn finish(redirect: Option<&str>, wait: u64, post: &Post) -> Result<Value, String> {
     let pending = PENDING.lock().unwrap().take().ok_or("start the sign-in first")?;
-    let redeem = |account: &str, tenant: &str, client: &str, code: &str, redirect: &str, verifier: &str| -> Result<Value, String> {
-        let j = post(
-            &format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"),
-            &[("client_id", client), ("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier), ("scope", SCOPES)],
-        )?;
+    let redeem = |account: &str, idp: &Idp, code: &str, redirect: &str, verifier: &str| -> Result<Value, String> {
+        let mut grant = vec![("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier)];
+        if idp.scope_on_renewal {
+            grant.push(("scope", idp.scopes));
+        }
+        let j = post(&idp.token_url, &idp.form(&grant))?;
         let rt = j["refresh_token"].as_str().ok_or_else(|| format!("sign-in failed: {}", refused(&j)))?;
         Ok(json!({ "signed_in": true, "_secrets": { format!("accounts.{account}.oauth_refresh"): rt } }))
     };
     match pending {
-        Pending::Automatic { account, tenant, client, verifier, redirect, answer } => {
+        Pending::Automatic { account, idp, verifier, redirect, answer } => {
             let (m, cv) = &*answer;
             let (q, _) = cv.wait_timeout_while(m.lock().unwrap(), Duration::from_secs(wait), |a| a.is_none()).unwrap();
             let q = q.clone().ok_or("no answer from the browser in time: start the sign-in again")?;
             match q.get("code") {
-                Some(code) => redeem(&account, &tenant, &client, code, &redirect, &verifier),
-                None => Err(format!("Outlook said no: {}", refused(&json!({ "error": q.get("error"), "error_description": q.get("error_description") })))),
+                Some(code) => redeem(&account, &idp, code, &redirect, &verifier),
+                None => Err(format!("{} said no: {}", idp.name, refused(&json!({ "error": q.get("error"), "error_description": q.get("error_description") })))),
             }
         }
-        Pending::Window { account, tenant, client, verifier } => {
+        Pending::Window { account, idp, verifier } => {
             let q = query_of(redirect.unwrap_or(""));
             match q.get("code") {
-                Some(code) => redeem(&account, &tenant, &client, code, WINDOW_REDIRECT, &verifier),
-                None if q.contains_key("error") => Err(format!("Outlook said no: {}", refused(&json!({ "error": q.get("error"), "error_description": q.get("error_description") })))),
+                Some(code) => redeem(&account, &idp, code, WINDOW_REDIRECT, &verifier),
+                None if q.contains_key("error") => Err(format!("{} said no: {}", idp.name, refused(&json!({ "error": q.get("error"), "error_description": q.get("error_description") })))),
                 None => Err("no code in that address: paste the whole address the sign-in ended on".into()),
             }
         }
-        Pending::Code { account, tenant, client, device_code, interval, until } => {
+        Pending::Code { account, idp, device_code, interval, until } => {
             while Instant::now() < until {
                 std::thread::sleep(Duration::from_secs(interval));
-                let j = post(
-                    &format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"),
-                    &[("client_id", &client), ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"), ("device_code", &device_code)],
-                )?;
+                let j = post(&idp.token_url, &idp.form(&[("grant_type", "urn:ietf:params:oauth:grant-type:device_code"), ("device_code", &device_code)]))?;
                 if let Some(rt) = j["refresh_token"].as_str() {
                     return Ok(json!({ "signed_in": true, "_secrets": { format!("accounts.{account}.oauth_refresh"): rt } }));
                 }
@@ -401,6 +502,40 @@ mod tests {
         });
         let done = finish(None, 10, &post).unwrap();
         assert_eq!(done, json!({ "signed_in": true, "_secrets": { "accounts.udes.oauth_refresh": "RT" } }));
+    }
+
+    /// Gmail: Google's endpoints, Thunderbird's Google application with its public secret, offline access asked so a
+    /// refresh token comes back; the renewal names no scope (the grant holds mail and the calendar). No code flow.
+    #[test]
+    fn gmail_signs_in_at_google_and_renews_the_whole_grant() {
+        use crate::account::{THUNDERBIRD_GOOGLE_CLIENT, THUNDERBIRD_GOOGLE_SECRET};
+        let card = json!({ "name": "g", "auth": "google", "user": "me@gmail.example", "flow": "window" });
+        let never = |_: &str, _: &[(&str, &str)]| -> Result<Value, String> { panic!("no call before the return") };
+        let started = start(&card, &never).unwrap();
+        let url = started["url"].as_str().unwrap();
+        assert!(url.starts_with("https://accounts.google.com/o/oauth2/v2/auth?"), "{url}");
+        let q = query_of(url);
+        assert_eq!((q["client_id"].as_str(), q["access_type"].as_str(), q["prompt"].as_str()), (THUNDERBIRD_GOOGLE_CLIENT, "offline", "consent select_account"));
+        assert_eq!(q["scope"], GOOGLE_SCOPES);
+        let redeem = |url: &str, form: &[(&str, &str)]| -> Result<Value, String> {
+            assert_eq!(url, "https://oauth2.googleapis.com/token");
+            let f: HashMap<_, _> = form.iter().cloned().collect();
+            assert_eq!((f["client_secret"], f["code"], f["redirect_uri"]), (THUNDERBIRD_GOOGLE_SECRET, "G0", "https://localhost"));
+            assert!(!f.contains_key("scope"));
+            Ok(json!({ "refresh_token": "GRT" }))
+        };
+        let done = finish(Some("https://localhost/?code=G0&scope=x"), 1, &redeem).unwrap();
+        assert_eq!(done["_secrets"]["accounts.g.oauth_refresh"], "GRT");
+        let acc = crate::account::pick(&json!({ "settings": { "accounts": [card] }, "secrets": { "accounts.g.oauth_refresh": "GRT" } })).unwrap();
+        let renew = |url: &str, form: &[(&str, &str)]| -> Result<Value, String> {
+            let f: HashMap<_, _> = form.iter().cloned().collect();
+            assert_eq!((url, f["grant_type"], f["refresh_token"]), ("https://oauth2.googleapis.com/token", "refresh_token", "GRT"));
+            assert!(!f.contains_key("scope") && f.contains_key("client_secret"));
+            Ok(json!({ "access_token": "GA", "expires_in": 3600 }))
+        };
+        assert_eq!(access_token(&acc, &renew).unwrap().as_deref(), Some("GA"));
+        let code = start(&json!({ "name": "g", "auth": "google", "user": "me@gmail.example", "flow": "code" }), &never).unwrap_err();
+        assert!(code.contains("no code sign-in"), "{code}");
     }
 
     #[test]

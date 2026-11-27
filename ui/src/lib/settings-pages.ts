@@ -145,7 +145,7 @@ export const PAGES: PageDef[] = [
   },
   {
     id: "plugins", title: "Plugins", group: "plugins", icon: "plugin", blurb: "The plugins in this vault: switch one on or off, open its page (its settings, problems and actions), install, update or remove. Their accounts are under Accounts; getting past a gate in front of a service, under Sign-ins.",
-    fields: [], features: [], panels: ["plugins"],
+    fields: ["plugins.auto_update"], features: [], panels: ["plugins"],
     next: [
       { label: "Write a plugin", why: "A folder in .atlas/plugins/ with a view.js and an optional data script; reloads on save.", run: "settings.pluginHelp" },
       { label: "Make a block of your own", why: "A block for notes and pages from a template: one file, with its options form.", run: "settings.newBlock" },

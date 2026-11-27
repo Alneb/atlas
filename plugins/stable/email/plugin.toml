@@ -7,7 +7,7 @@
 title = "Email"
 description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
 icon = "mail"
-version = "1.11.1"
+version = "1.12.0"
 rail = true          # a button for the Email pane (view.js)
 provides = ["mail"]  # the role other plugins call it by (the Calendar's Exchange sign-in: `@mail/helper` calendar_token)
 api = 12
@@ -29,18 +29,19 @@ label = "Accounts"
 kind = "records"
 add = "Add account"
 hint = "The first one is the main one: used when a block or a tool names no account."
-actions = [{ label = "Sign in to Outlook", command = "signin", when = { auth = "outlook" } }]
+actions = [{ label = "Sign in to Outlook", command = "signin", when = { auth = "outlook" } }, { label = "Sign in to Google", command = "signin", when = { auth = "google" } }]
 list_actions = [{ label = "Import from Thunderbird…", command = "thunderbird" }]
 # Settings → Accounts: each card with its state, Test before saving, and ready-made servers to start from
 account = { kind = "Mail", summary = "{user} · {imap_host}", status = "account_status", test = "test_account", presets = [
-  { label = "Gmail", hint = "with an app password (Google account → Security → App passwords)", values = { auth = "password", imap_host = "imap.gmail.com", imap_port = 993, smtp_host = "smtp.gmail.com", smtp_port = 465, security = "ssl" } },
+  { label = "Gmail", hint = "sign in on Google's page; the same sign-in gives the Calendar plugin your Google calendars", values = { auth = "google", flow = "automatic" } },
+  { label = "Gmail (app password)", hint = "with an app password (Google account → Security → App passwords): mail only", values = { auth = "password", imap_host = "imap.gmail.com", imap_port = 993, smtp_host = "smtp.gmail.com", smtp_port = 465, security = "ssl" } },
   { label = "Outlook / Microsoft 365", hint = "a university or work account: sign in on Microsoft's page", values = { auth = "outlook", flow = "automatic" } },
   { label = "iCloud", hint = "with an app-specific password", values = { auth = "password", imap_host = "imap.mail.me.com", imap_port = 993, smtp_host = "smtp.mail.me.com", smtp_port = 587, security = "ssl" } },
   { label = "Fastmail", hint = "with an app password", values = { auth = "password", imap_host = "imap.fastmail.com", imap_port = 993, smtp_host = "smtp.fastmail.com", smtp_port = 465, security = "ssl" } },
 ] }
 fields = [
   { key = "name", label = "Name", kind = "text", hint = "short, to name the account in a block or a tool: udes, gmail (letters, digits, . @ - _)" },
-  { key = "auth", label = "Sign-in", kind = "choice", choices = ["password", "outlook"], default = "password", hint = "outlook: Microsoft 365 / Outlook.com, which refuse passwords" },
+  { key = "auth", label = "Sign-in", kind = "choice", choices = ["password", "outlook", "google"], default = "password", hint = "outlook: Microsoft 365 / Outlook.com, which refuse passwords; google: Gmail / Google Workspace signed in on Google's page (also the Calendar plugin's Google calendars)" },
   { key = "user", label = "Address / user name", kind = "text" },
   { key = "from", label = "From", kind = "text", hint = "Name <address> on mail you send (default: the user name)" },
   { key = "password", label = "Password", kind = "secret", when = { auth = "password" }, hint = "an app password where the provider has them (Gmail)" },
@@ -49,10 +50,11 @@ fields = [
   { key = "smtp_host", label = "SMTP server", kind = "text", group = "Servers", when = { auth = "password" }, hint = "empty: the IMAP server" },
   { key = "smtp_port", label = "SMTP port", kind = "number", group = "Servers", when = { auth = "password" }, hint = "465 = TLS from the start; anything else (587) = STARTTLS" },
   { key = "security", label = "Security", kind = "choice", choices = ["ssl", "starttls", "none"], default = "ssl", group = "Servers", when = { auth = "password" } },
-  { key = "client_id", label = "Application (client) ID", kind = "text", group = "Outlook", when = { auth = "outlook" }, hint = "empty: Thunderbird's public ID (many organisations allow it); or an app your organisation registered (README.md)" },
-  { key = "flow", label = "Sign-in flow", kind = "choice", choices = ["automatic", "window", "code"], default = "automatic", group = "Outlook", when = { auth = "outlook" }, hint = "automatic: Microsoft's page opens in your own browser (already signed in to your university there) and Atlas catches the answer by itself; window: the page in a window of Atlas; code: type a copied code at microsoft.com/devicelogin" },
-  { key = "tenant", label = "Tenant", kind = "text", default = "common", group = "Outlook", when = { auth = "outlook" }, hint = "common, organizations, or your organisation's domain / tenant id" },
-  { key = "oauth_refresh", label = "Outlook sign-in", kind = "secret", readonly = true, when = { auth = "outlook" }, hint = "kept by “Sign in to Outlook”" },
+  { key = "client_id", label = "Application (client) ID", kind = "text", group = "Sign-in", when = { auth = ["outlook", "google"] }, hint = "empty: Thunderbird's public one (many organisations allow it); or an application your organisation or you registered (README.md)" },
+  { key = "client_secret", label = "Client secret", kind = "text", group = "Sign-in", when = { auth = "google" }, hint = "only with a Google Cloud client of your own (its Desktop app secret, not a real secret for such clients); empty with Thunderbird's" },
+  { key = "flow", label = "Sign-in flow", kind = "choice", choices = ["automatic", "window", "code"], default = "automatic", group = "Sign-in", when = { auth = ["outlook", "google"] }, hint = "automatic: the provider's page opens in your own browser (already signed in there) and Atlas catches the answer by itself; window: the page in a window of Atlas (Google refuses it); code: type a copied code at microsoft.com/devicelogin (Outlook only)" },
+  { key = "tenant", label = "Tenant", kind = "text", default = "common", group = "Sign-in", when = { auth = "outlook" }, hint = "common, organizations, or your organisation's domain / tenant id" },
+  { key = "oauth_refresh", label = "Sign-in", kind = "secret", readonly = true, when = { auth = ["outlook", "google"] }, hint = "kept by the card's Sign in button" },
   { key = "aliases", label = "Other addresses", kind = "longtext", hint = "identities to send from and to recognise as you: one per line, Name <address>" },
   { key = "signature", label = "Signature", kind = "longtext", hint = "put under what you write, after a “-- ” line (above a quoted reply); empty: none" },
   { key = "claude", label = "Claude may read it", kind = "choice", choices = ["ask", "always", "never"], default = "ask", hint = "through atlas mcp (email_inbox, email_read): ask — Atlas asks you each time, in its window; sending always needs your own yes in Claude Code" },

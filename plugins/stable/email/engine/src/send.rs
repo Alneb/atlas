@@ -131,7 +131,7 @@ pub async fn draft_of(m: &Mail, c: &Compose) -> Result<(Account, Draft), String>
 
 /// Whether the server files sent mail in Sent by itself (Gmail, Outlook): then no copy is appended.
 fn files_sent(acc: &Account) -> bool {
-    matches!(acc.auth, Auth::Outlook { .. }) || acc.smtp.host.contains("gmail") || acc.smtp.host.contains("google") || acc.smtp.host.contains("office365") || acc.smtp.host.contains("outlook")
+    acc.auth.is_oauth() || acc.smtp.host.contains("gmail") || acc.smtp.host.contains("google") || acc.smtp.host.contains("office365") || acc.smtp.host.contains("outlook")
 }
 
 /// Sends a message now → { message_id, refused, sent_copy }.

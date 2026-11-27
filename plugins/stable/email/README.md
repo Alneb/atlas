@@ -64,12 +64,22 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
 
 - **Accounts** (cards, also under Settings → Accounts, with Gmail, Outlook / Microsoft 365, iCloud and Fastmail
   presets, a state line and Test; the first is the main one):
-  - **Name**; **Sign-in** (password or outlook); **Address / user name**; **From** (`Name <address>`);
+  - **Name**; **Sign-in** (password, outlook or google); **Address / user name**; **From** (`Name <address>`);
   - with a password: **Password** (a secret; an app password where the provider has them), **IMAP server / port**,
     **SMTP server / port** (465 TLS, otherwise STARTTLS), **Security** (ssl, starttls, none);
   - with Outlook: **Application (client) ID** (empty: Thunderbird's public id), **Sign-in flow** (automatic: the
     system browser; window: a window of Atlas; code: a device code), **Tenant** (`common`), and the kept sign-in
     (set by "Sign in to Outlook");
+  - with Google (Gmail, Google Workspace): Gmail's servers are fixed (imap.gmail.com 993, smtp.gmail.com 465, XOAUTH2);
+    **Application (client) ID** and **Client secret** (empty: Thunderbird's public Google application; or a Google
+    Cloud OAuth client of your own, type *Desktop app*, whose secret Google does not treat as secret), **Sign-in flow**
+    (automatic, the default: Google's page in your own browser, the answer caught on a loopback port; Google refuses
+    sign-in inside an app's window, and its device-code flow does not grant mail), and the kept sign-in (set by "Sign
+    in to Google"). The one sign-in asks for mail and Google Calendar (`https://mail.google.com/`,
+    `https://www.googleapis.com/auth/calendar`): the Calendar plugin's Google account of the same address borrows it
+    through `calendar_token`, as an Exchange calendar borrows Outlook's. Google may call Thunderbird's application
+    unverified or, for a Workspace account, require the administrator's approval; a client of your own avoids both
+    (one made in *testing* mode signs you out every 7 days). The app-password Gmail card still works for mail only.
   - **Other addresses** (identities, one per line), **Signature**, **Claude may read it** (ask, always, never).
   - Under the cards: **Import from Thunderbird…**.
 - **Layout** (three, below, full), **Rows** (comfortable, compact), **Split inbox**, **Mark read when opened**,

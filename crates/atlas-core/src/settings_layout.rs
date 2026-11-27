@@ -28,7 +28,7 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("notes.capture_template", "Fleeting note template"), ("notes.capture_thumbnail", "Captured pictures in the log, width (px)"),
     ("editor.live", "Live editing between devices"), ("editor.heading_renames", "The title heading renames the file"), ("editor.code_bar", "Tool bar above code files"), ("editor.task_chips", "Task dates as chips"),
     ("activity.show_claude", "AI agents' commits"), ("activity.show_housekeeping", "Housekeeping commits"), ("activity.show_files", "Files as well as notes"), ("activity.group_threshold", "Group a folder's changes from"),
-    ("plugins.oidc_issuer", "Sign-in provider (OpenID Connect)"), ("plugins.oidc_client_id", "Sign-in client id"), ("plugins.oidc_redirect", "Sign-in return address"),
+    ("plugins.auto_update", "Update plugins by themselves"), ("plugins.oidc_issuer", "Sign-in provider (OpenID Connect)"), ("plugins.oidc_client_id", "Sign-in client id"), ("plugins.oidc_redirect", "Sign-in return address"),
     ("ui.eink", "E-ink screen"), ("ui.eink_refresh", "E-ink full refresh"), ("terminal.min_size", "Terminal's smallest size (px)"),
     ("lsp.c", "C / C++ server"), ("lsp.rust", "Rust server"), ("lsp.python", "Python server"), ("lsp.latex", "LaTeX server"),
     ("lsp.language", "Servers' message language"), ("lsp.inlay_hints", "Inlay hints"), ("lsp.python_env", "Python environment"),

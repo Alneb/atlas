@@ -719,7 +719,7 @@ CI builds the engines on Linux (x86_64 and arm64), macOS (both) and Windows, pac
 run's artifact `plugins`; a release attaches them (`.github/workflows/packages.yml`). Atlas installs an archive from a
 file or from its web address; `atlas-plugin-<id>.tar.gz` installs as `<id>`, and an address such as
 `https://github.com/<owner>/atlas/releases/latest/download/atlas-plugin-<id>.tar.gz` is kept, so `atlas plugin
-update <id>` fetches the newest release. Public release files need no sign-in or token. On macOS the download's
+update <id>` fetches the newest release. Public release files need no sign-in or token. Atlas also does it by itself: with `[plugins] auto_update` on (the default; Settings → Plugins, "Update plugins by themselves") it checks the release when a vault opens and every 6 hours and updates each plugin the release has newer, unless the plugin was changed in the vault since it was installed. On macOS the download's
 quarantine mark is taken off the unpacked files (the plugin is installed switched off, as any).
 
 ## From a terminal

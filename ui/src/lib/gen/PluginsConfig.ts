@@ -26,4 +26,9 @@ oidc_redirect: string,
  * Where "Install a plugin" finds the released plugins: a `plugins.json` with the `atlas-plugin-<id>.tar.gz`
  * archives beside it (a release's files need no sign-in). Empty: none offered.
  */
-release_index: string, };
+release_index: string, 
+/**
+ * Keep the vault's plugins at the release's versions by themselves: checked when the vault opens and every few
+ * hours (plugin_install.rs `auto_candidates`). A plugin changed in the vault since it was installed is left alone.
+ */
+auto_update: boolean, };

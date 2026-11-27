@@ -7,6 +7,13 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Added
 
+- Gmail signs in with Google (OAuth2, as Thunderbird does; Email 1.12.0): a Gmail card with Sign-in `google` needs no
+  app password, and the same sign-in lends Google Calendar to the Calendar plugin (Calendar 1.15.0: Server `google`,
+  the Gmail address, nothing else to type). A Google Cloud client of your own can be put on the card.
+- Plugins update by themselves from the release: when a vault opens and every 6 hours, each plugin the release has
+  newer (and built for this computer) is installed over, its settings and own files kept, the old copy to the trash;
+  one notice says what changed. A plugin changed in the vault is left alone, and a notice says so. Settings → Plugins → "Update plugins by
+  themselves" switches it off (`[plugins] auto_update`). Not in a local copy of a server vault: the server updates it.
 - Settings → Vaults & sync lists, under each vault, its scheduled jobs and where each runs — here, on its server, on
   the devices, on other computers — with how the last run went (`GET /api/schedules`).
 
@@ -20,6 +27,14 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 - The command bar no longer flickers when it opens: it shows at once, with no opening animation, and its commands are
   not redrawn when the keys reloaded on opening have not changed.
+- Editor tabs in the tab list can be dragged again in the desktop app: as a drag started, the terminal section above
+  them grew its drop strip and pushed the dragged row down, and WebKit ends a drag whose source moved. Only the
+  dragged tab's own section shows the strip now.
+- Ctrl+Shift+V in a terminal pastes once: the key is cancelled after the terminal's own paste, so the engine's paste
+  command no longer runs as well.
+- A plugin setting's "found on this machine" list opens when one of the suggestions has an empty value (the Claude
+  plugin's default account): it had the same value as the list's heading, and the duplicate stopped the list. Picking
+  the empty suggestion now empties the box.
 
 ## [0.4.11] - 2026-11-23
 

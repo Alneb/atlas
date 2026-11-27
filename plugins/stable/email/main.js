@@ -576,11 +576,11 @@ var X = (e, t) => JSON.stringify({
 function Z(e, t) {
 	let n = typeof t == "object" ? t : void 0, r = X(typeof t == "string" ? t : n?.name, n);
 	typeof e.openDialog == "function" ? e.openDialog(r, {
-		title: "Sign in to Outlook",
+		title: "Sign in",
 		width: 560,
 		height: 360
 	}) : e.openView(r, {
-		title: "Outlook sign-in",
+		title: "Mail sign-in",
 		icon: "mail"
 	});
 }
@@ -665,7 +665,7 @@ function Q(e) {
 		run: () => e.plugin.openSettings()
 	}), e.registerCommand({
 		id: "signin",
-		title: "Email: sign in to Outlook…",
+		title: "Email: sign in to Outlook or Gmail…",
 		run: (t) => void Z(e, t?.record)
 	});
 	let r = () => typeof e.openDialog == "function" ? void e.openDialog(N, {

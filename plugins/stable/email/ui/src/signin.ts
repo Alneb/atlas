@@ -1,4 +1,4 @@
-// Outlook's sign-in: SignIn.svelte in a dialog over the app (API 20; a tab of its own on an older one). Started from
+// Outlook's and Gmail's sign-in: SignIn.svelte in a dialog over the app (API 20; a tab of its own on an older one). Started from
 // the command, from an account's card in Settings (the "atlas-email:signin" event) and when the engine asks.
 import type { PluginApi } from "./api";
 
@@ -10,6 +10,6 @@ export const signinDialog = (account?: string, record?: Card) => JSON.stringify(
 export function signin(atlas: PluginApi, name?: string | Card): void {
   const record = typeof name === "object" ? name : undefined;
   const arg = signinDialog(typeof name === "string" ? name : record?.name, record);
-  if (typeof atlas.openDialog === "function") void atlas.openDialog(arg, { title: "Sign in to Outlook", width: 560, height: 360 });
-  else atlas.openView(arg, { title: "Outlook sign-in", icon: "mail" });
+  if (typeof atlas.openDialog === "function") void atlas.openDialog(arg, { title: "Sign in", width: 560, height: 360 });
+  else atlas.openView(arg, { title: "Mail sign-in", icon: "mail" });
 }

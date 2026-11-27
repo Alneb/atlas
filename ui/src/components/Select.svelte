@@ -53,7 +53,9 @@
   </button>
   {#if open}
     <ul class="menu" role="listbox" bind:this={list} tabindex="-1">
-      {#each options as o, i (o.value)}
+      <!-- keyed by place, not value: two options of one value (a placeholder "" beside a suggestion "") made a duplicate
+           key, an error that left the list unopened -->
+      {#each options as o, i (i)}
         <li role="option" aria-selected={o.value === value} class:on={i === active} class:cur={o.value === value}
           onmousedown={(e) => { e.preventDefault(); pick(i); }} onmousemove={() => (active = i)}>
           <span class="l">{o.label}</span>{#if o.note}<span class="n">{o.note}</span>{/if}

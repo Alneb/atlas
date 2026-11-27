@@ -15,7 +15,6 @@ use crate::uid::resource_name;
 use crate::xml::{self, Node};
 use base64::Engine;
 use reqwest::blocking::Client as Http;
-use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use url::Url;
@@ -106,7 +105,7 @@ impl Client {
         if !user.contains('@') {
             return Err(DavError::Setup("the Exchange account needs its mailbox's address as the user name (Settings → Calendar → Accounts)".into()));
         }
-        Self::with_token(user, Self::token(user)?)
+        Self::with_token(user, crate::conf::email_token(user, "Exchange")?)
     }
 
     /// A client with a token already in hand (tests, probes).
@@ -114,17 +113,6 @@ impl Client {
         let http = Http::builder().timeout(std::time::Duration::from_secs(60)).build().map_err(|e| DavError::Setup(e.to_string()))?;
         let base = Url::parse(&format!("{ENDPOINT}/{}/", user.replace('/', "_"))).map_err(|e| DavError::Setup(e.to_string()))?;
         Ok(Client { http, user: user.to_string(), token, base })
-    }
-
-    /// Email's token for this mailbox (it keeps and renews the sign-in).
-    fn token(user: &str) -> Result<String> {
-        if !crate::conf::serving() {
-            return Err(DavError::Setup("an Exchange calendar needs Atlas running (its sign-in is the Email plugin's)".into()));
-        }
-        let a = atlas_plugin::Atlas::new()
-            .post("/api/plugins/@mail/helper", &json!({ "method": "calendar_token", "params": { "user": user }, "timeout_secs": 60 }))
-            .map_err(|e| DavError::Setup(format!("Exchange sign-in through Email: {e}")))?;
-        a["token"].as_str().map(str::to_string).ok_or_else(|| DavError::Setup(format!("Exchange sign-in through Email: {}", a["error"].as_str().unwrap_or("no token"))))
     }
 
     pub fn base(&self) -> &Url {

@@ -14,6 +14,8 @@
   } = $props();
   const items = $derived(layout(fields));
   const on = (f: OptionField) => applies(f, values, fields);
+  /** the "N found on this machine…" heading of a field's suggestions: a value no suggestion can have */
+  const FOUND = "\u0000found";
 </script>
 
 {#snippet field(f: OptionField)}
@@ -37,8 +39,9 @@
         <input class="text" type={f.kind === "secret" ? "password" : undefined} autocomplete={f.kind === "secret" ? "off" : undefined} value={String(values[f.key] ?? "")} inputmode={f.kind === "number" ? "decimal" : undefined} spellcheck="false" oninput={(e) => (values[f.key] = e.currentTarget.value)} /></label>
       {#if f.kind === "text" && f.suggestions?.length}
         <!-- what the plugin found on this machine: picked into the box, which stays free to type -->
-        <div class="found"><Select label="{f.label}: found on this machine" value=""
-          options={[{ value: "", label: `${f.suggestions.length} found on this machine…` }, ...f.suggestions]} onchange={(v) => (values[f.key] = v)} /></div>
+        <!-- the heading's value is no suggestion's: a suggestion "" (the default, an empty box) is then a real pick -->
+        <div class="found"><Select label="{f.label}: found on this machine" value={FOUND}
+          options={[{ value: FOUND, label: `${f.suggestions.length} found on this machine…` }, ...f.suggestions]} onchange={(v) => { if (v !== FOUND) values[f.key] = v; }} /></div>
       {/if}
     {/if}
     {#if f.hint}<p class="hint">{f.hint}</p>{/if}

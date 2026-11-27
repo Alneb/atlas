@@ -76,7 +76,7 @@ export function register(atlas: PluginApi) {
     });
   });
   atlas.registerCommand({ id: "accounts", title: "Email: accounts…", run: () => atlas.plugin.openSettings() });
-  atlas.registerCommand({ id: "signin", title: "Email: sign in to Outlook…", run: (arg?: unknown) => void signin(atlas, (arg as { record?: Card })?.record) });
+  atlas.registerCommand({ id: "signin", title: "Email: sign in to Outlook or Gmail…", run: (arg?: unknown) => void signin(atlas, (arg as { record?: Card })?.record) });
   // Thunderbird's accounts and local mail: one dialog over the app (API 20); a tab of its own on an older one
   const thunderbird = () => (typeof atlas.openDialog === "function"
     ? void atlas.openDialog(THUNDERBIRD_DIALOG, { title: "Import from Thunderbird", width: 640, height: 560 })

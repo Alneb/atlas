@@ -24,6 +24,11 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
 - **Quick add** (`q`): a line in English, Spanish or French ("lunch with Ana tomorrow 13:00"), previewed as you type.
 - **The side panel**: a mini month, one heading per account with its calendars (show / hide, colour), the
   subscriptions, and — when switched on — your important notes as a calendar.
+- **Google Calendar**: an account card with Server `google` and the Gmail address reads and writes that account's
+  calendars over Google's CalDAV (`https://apidata.googleusercontent.com/caldav/v2/`, found from there as any server).
+  No sign-in of its own: the Email plugin's Gmail account of the same address (Sign-in `google`) asks Google for the
+  calendar too, and lends a token through `calendar_token`, renewed by Email. No WebDAV Push and no contacts from
+  Google yet (checked on the regular round).
 - **Outlook / Microsoft 365 (Exchange)**: an account card with Server `exchange` and the mailbox's address reads and
   writes that mailbox's calendars over Exchange Web Services. It has no sign-in of its own: the Email plugin's Outlook
   account of the same address lends its sign-in (`@mail` → `calendar_token`), so nothing is typed twice and nothing

@@ -187,6 +187,9 @@ pub struct PluginsConfig {
     /// Where "Install a plugin" finds the released plugins: a `plugins.json` with the `atlas-plugin-<id>.tar.gz`
     /// archives beside it (a release's files need no sign-in). Empty: none offered.
     pub release_index: String,
+    /// Keep the vault's plugins at the release's versions by themselves: checked when the vault opens and every few
+    /// hours (plugin_install.rs `auto_candidates`). A plugin changed in the vault since it was installed is left alone.
+    pub auto_update: bool,
 }
 
 /// The project's latest release.
@@ -194,7 +197,7 @@ pub const RELEASE_INDEX: &str = "https://github.com/Alneb/atlas/releases/latest/
 
 impl Default for PluginsConfig {
     fn default() -> Self {
-        Self { off: Vec::new(), oidc_issuer: String::new(), oidc_client_id: String::new(), oidc_redirect: String::new(), release_index: RELEASE_INDEX.into() }
+        Self { off: Vec::new(), oidc_issuer: String::new(), oidc_client_id: String::new(), oidc_redirect: String::new(), release_index: RELEASE_INDEX.into(), auto_update: true }
     }
 }
 

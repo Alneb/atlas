@@ -154,8 +154,26 @@ const REDIRECTS: usize = 5;
 pub struct Client {
     http: Http,
     base: Url,
-    user: String,
-    password: String,
+    login: Login,
+}
+
+/// How a CalDAV client signs in: an app password, or a token (Google's, kept and renewed by the Email plugin).
+enum Login {
+    Basic { user: String, password: String },
+    Bearer(String),
+}
+
+/// Google Calendar's CalDAV (the principal and the calendars are found from it, as for any server).
+pub const GOOGLE: &str = "https://apidata.googleusercontent.com/caldav/v2/";
+
+/// The HTTP client every CalDAV client uses.
+fn http() -> Result<Http> {
+    Http::builder()
+        .redirect(reqwest::redirect::Policy::none()) // followed by hand, keeping the method (PROPFIND, REPORT)
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent(concat!("Atlas-dav/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| DavError::Setup(format!("the HTTP client could not start: {e}")))
 }
 
 /// A collection's address always ends in `/`, so joining a resource name adds to it instead of replacing its last part.
@@ -254,13 +272,19 @@ impl Client {
         if !matches!(base.scheme(), "http" | "https") {
             return Err(DavError::Setup(format!("the server address must start with https:// (got {url:?})")));
         }
-        let http = Http::builder()
-            .redirect(reqwest::redirect::Policy::none()) // followed by hand, keeping the method (PROPFIND, REPORT)
-            .timeout(std::time::Duration::from_secs(30))
-            .user_agent(concat!("Atlas-dav/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| DavError::Setup(format!("the HTTP client could not start: {e}")))?;
-        Ok(Client { http, base: as_dir(base), user: user.to_string(), password: acc.password.clone() })
+        let http = http()?;
+        Ok(Client { http, base: as_dir(base), login: Login::Basic { user: user.to_string(), password: acc.password.clone() } })
+    }
+
+    /// Google Calendar of the address `user`: signed in through the Email plugin's Gmail account of that address (the
+    /// one Google sign-in grants mail and the calendar), with the token Email renews.
+    pub fn google(user: &str) -> Result<Client> {
+        let user = user.trim();
+        if !user.contains('@') {
+            return Err(DavError::Setup("the Google account needs its Gmail address as the user name (Settings → Calendar → Accounts)".into()));
+        }
+        let token = crate::conf::email_token(user, "Google Calendar")?;
+        Ok(Client { http: http()?, base: Url::parse(GOOGLE).expect("a fixed address"), login: Login::Bearer(token) })
     }
 
     pub fn base(&self) -> &Url {
@@ -288,7 +312,10 @@ impl Client {
         let m = Method::from_bytes(method.as_bytes()).map_err(|e| DavError::Setup(e.to_string()))?;
         let mut at = url.clone();
         for _ in 0..=REDIRECTS {
-            let mut req = self.http.request(m.clone(), at.clone()).basic_auth(&self.user, Some(&self.password));
+            let mut req = match &self.login {
+                Login::Basic { user, password } => self.http.request(m.clone(), at.clone()).basic_auth(user, Some(password)),
+                Login::Bearer(token) => self.http.request(m.clone(), at.clone()).bearer_auth(token),
+            };
             if let Some(d) = depth {
                 req = req.header("Depth", d);
             }

@@ -5,9 +5,9 @@
 # Email hands it (`import_invite`) and answers Email's address book. It never reads mail; notes marked
 # `important: true` with `due:` / `event:` are shown, and put on the server, only when switched on.
 title = "Calendar"
-description = "your calendars in a pane: month, week, day, agenda; several CalDAV or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
+description = "your calendars in a pane: month, week, day, agenda; several CalDAV, Google Calendar or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
 icon = "calendar"
-version = "1.14.1"
+version = "1.15.0"
 rail = true          # a button for the Calendar pane (view.js)
 provides = ["calendar"]  # the role other plugins call it by (Email: `@calendar/tools/import_invite`, contacts, agenda)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
@@ -34,12 +34,13 @@ account = { kind = "Calendar", summary = "{user} · {url}", status = "account_st
   { label = "RustiCal", hint = "an app token from its web page → App tokens", values = { url = "https://cal.example.org/caldav/" } },
   { label = "Nextcloud", hint = "an app password from Settings → Security → Devices & sessions", values = { url = "https://cloud.example.org/remote.php/dav/" } },
   { label = "Outlook / Microsoft 365", hint = "your work or university Exchange calendar, signed in through the Email plugin's Outlook account of the same address", values = { server = "exchange" } },
+  { label = "Google Calendar", hint = "signed in through the Email plugin's Gmail account of the same address (its Google sign-in grants the calendar too)", values = { server = "google" } },
 ] }
 fields = [
   { key = "name", label = "Name", kind = "text", hint = "short: it starts each calendar's id (home/personal). Letters, digits, . @ - _" },
-  { key = "server", label = "Server", kind = "choice", choices = ["caldav", "exchange"], default = "caldav", hint = "caldav: any CalDAV server; exchange: Outlook / Microsoft 365, signed in through Email's Outlook account of the same address (no password here)" },
+  { key = "server", label = "Server", kind = "choice", choices = ["caldav", "exchange", "google"], default = "caldav", hint = "caldav: any CalDAV server; exchange: Outlook / Microsoft 365, signed in through Email's Outlook account of the same address; google: Google Calendar, through Email's Gmail account of the same address (no password here for either)" },
   { key = "url", label = "Server address", kind = "text", when = { server = "caldav" }, hint = "https://cal.example.org/caldav/ (RustiCal), https://host/remote.php/dav/ (Nextcloud); the server's top often works too" },
-  { key = "user", label = "User name", kind = "text", hint = "exchange: the mailbox's address, as in Email" },
+  { key = "user", label = "User name", kind = "text", hint = "exchange / google: the mailbox's address, as in Email" },
   { key = "password", label = "App password", kind = "secret", when = { server = "caldav" }, hint = "an app password made on the server (RustiCal: its web page → App tokens), not your sign-in password" },
   { key = "color", label = "Colour", kind = "text", hint = "#hex for this account's calendars that have no colour of their own; empty: picked from the name" },
 ]

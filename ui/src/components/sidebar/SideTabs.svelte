@@ -133,8 +133,11 @@
       {/if}
       <!-- rows slide to their new place (a move, a drop, a close) instead of jumping -->
       {#each sec.rest as e (e.t.id)}<div class="slide" animate:flip={{ duration: rowGlide() }}>{@render tabRow(e.g, e.t, false)}</div>{/each}
-      <!-- the room under the last row takes a drop too: the tab goes to the end of the section -->
-      {#if wide && side.dragId && sec.groups.length}
+      <!-- the room under the last row takes a drop too: the tab goes to the end of the section. Only in the dragged
+           tab's own section: one appearing in a section above it would push the dragged row down as the drag starts,
+           and WebKit (the desktop app) drops a drag whose source moved under the pointer — no editor tab could be
+           dragged while the terminal section stood above them. Below the source, it moves nothing. -->
+      {#if wide && side.dragId && sec.groups.length && sec.groups.some((g) => g.tabs.some((t) => t.id === side.dragId))}
         <div class="end-drop" class:on={side.end === sec.zone} role="presentation" ondragenter={acceptDrag}
           ondragover={(e) => { if (side.dragId) { e.preventDefault(); side.mark = null; side.into = null; side.end = sec.zone; } }}
           ondragleave={() => { if (side.end === sec.zone) side.end = null; }} ondrop={(e) => groupDrop(e, sec.groups[sec.groups.length - 1])}></div>

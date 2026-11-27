@@ -137,6 +137,7 @@ fn accounts(m: &Arc<Mail>, _p: &Value) -> Result<Value, String> {
                     "name": a.name, "user": a.user, "from": a.from, "main": a.main, "own": a.own(),
                     "identities": std::iter::once(a.from.clone()).chain(a.aliases.clone()).collect::<Vec<_>>(),
                     "outlook": matches!(a.auth, crate::account::Auth::Outlook { .. }),
+                    "google": matches!(a.auth, crate::account::Auth::Google { .. }),
                     "unread": inbox.as_ref().map(|f| f.unread).unwrap_or(0),
                     "status": m.status(&a.name), "syncing": m.is_syncing(&a.name),
                     "signature": a.signature,
@@ -841,10 +842,15 @@ fn calendar_token(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
         .accounts()
         .into_iter()
         .flatten()
-        .find(|a| matches!(a.auth, crate::account::Auth::Outlook { .. }) && a.user.eq_ignore_ascii_case(user))
-        .ok_or_else(|| format!("no Outlook account for {user} in Email: add it there (Settings → Email → Accounts) and sign in"))?;
-    let token = crate::oauth::access_token_for(&acc, crate::oauth::EWS_SCOPES, &*m.post)?.ok_or("not an Outlook account")?;
-    Ok(json!({ "token": token, "account": acc.name }))
+        .find(|a| a.auth.is_oauth() && a.user.eq_ignore_ascii_case(user))
+        .ok_or_else(|| format!("no Outlook or Gmail account for {user} in Email: add it there (Settings → Email → Accounts) and sign in"))?;
+    // Outlook: Exchange (EWS), its own scope on the one refresh token; Gmail: the sign-in's grant holds the calendar
+    let (scopes, kind) = match acc.auth {
+        crate::account::Auth::Google { .. } => (crate::oauth::GOOGLE_SCOPES, "google"),
+        _ => (crate::oauth::EWS_SCOPES, "exchange"),
+    };
+    let token = crate::oauth::access_token_for(&acc, scopes, &*m.post)?.ok_or("not signed in with a token")?;
+    Ok(json!({ "token": token, "account": acc.name, "kind": kind }))
 }
 
 fn signin_start(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {

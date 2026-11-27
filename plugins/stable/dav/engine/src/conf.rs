@@ -60,12 +60,35 @@ pub struct Card {
 pub enum Server {
     Caldav,
     Exchange,
+    /// Google Calendar: CalDAV at Google, signed in through the Email plugin's Gmail account of the same address.
+    Google,
 }
 
 impl Server {
     pub fn of(card: &Value) -> Server {
-        if text(card, "server") == "exchange" { Server::Exchange } else { Server::Caldav }
+        match text(card, "server").as_str() {
+            "exchange" => Server::Exchange,
+            "google" => Server::Google,
+            _ => Server::Caldav,
+        }
     }
+    /// Signed in through the Email plugin's account of the card's address (no password on the card).
+    pub fn through_email(self) -> bool {
+        matches!(self, Server::Exchange | Server::Google)
+    }
+}
+
+/// A token for the account of address `user` from the Email plugin, which keeps and renews its sign-in (Outlook's for
+/// Exchange, Gmail's for Google Calendar). `what`: the service, for the error the person reads.
+pub fn email_token(user: &str, what: &str) -> crate::caldav::Result<String> {
+    use crate::caldav::DavError;
+    if !serving() {
+        return Err(DavError::Setup(format!("{what} needs Atlas running (its sign-in is the Email plugin's)")));
+    }
+    let a = atlas_plugin::Atlas::new()
+        .post("/api/plugins/@mail/helper", &json!({ "method": "calendar_token", "params": { "user": user }, "timeout_secs": 60 }))
+        .map_err(|e| DavError::Setup(format!("{what} sign-in through Email: {e}")))?;
+    a["token"].as_str().map(str::to_string).ok_or_else(|| DavError::Setup(format!("{what} sign-in through Email: {}", a["error"].as_str().unwrap_or("no token"))))
 }
 
 impl Card {
@@ -73,7 +96,7 @@ impl Card {
     pub fn filled(&self) -> bool {
         match self.server {
             Server::Caldav => !(self.account.url.is_empty() || self.account.user.is_empty()),
-            Server::Exchange => self.account.user.contains('@'),
+            Server::Exchange | Server::Google => self.account.user.contains('@'),
         }
     }
 
@@ -88,6 +111,7 @@ fn url_of(card: &Value, server: Server) -> String {
     match server {
         Server::Caldav => text(card, "url"),
         Server::Exchange => crate::ews::ENDPOINT.to_string(),
+        Server::Google => crate::caldav::GOOGLE.to_string(),
     }
 }
 
@@ -174,7 +198,7 @@ pub fn card_of(record: &Value, p: &Value) -> Option<Card> {
 pub fn filled(s: &Value) -> bool {
     let full = |c: &Value| match Server::of(c) {
         Server::Caldav => ["name", "url", "user"].iter().all(|k| !text(c, k).is_empty()),
-        Server::Exchange => !text(c, "name").is_empty() && text(c, "user").contains('@'),
+        Server::Exchange | Server::Google => !text(c, "name").is_empty() && text(c, "user").contains('@'),
     };
     legacy_card(s).is_some() || s["accounts"].as_array().is_some_and(|a| a.iter().any(full))
 }
@@ -285,6 +309,16 @@ pub fn refresh_minutes(s: &Value) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A Google card: its Gmail address only, no password (Email's Gmail sign-in), Google's CalDAV as its address.
+    #[test]
+    fn a_google_card_needs_only_its_address_and_signs_in_through_email() {
+        let card = card_of(&json!({ "name": "g", "server": "google", "user": "me@gmail.example" }), &json!({})).expect("filled");
+        assert_eq!((card.server, card.account.url.as_str()), (Server::Google, crate::caldav::GOOGLE));
+        assert!(!card.lacks_password() && card.server.through_email());
+        assert!(card_of(&json!({ "name": "g", "server": "google", "user": "me" }), &json!({})).is_none(), "an address is needed");
+        assert!(filled(&json!({ "accounts": [{ "name": "g", "server": "google", "user": "me@gmail.example" }] })));
+    }
 
     #[test]
     fn the_notifications_server_counts_only_when_that_plugin_runs_and_it_was_set() {

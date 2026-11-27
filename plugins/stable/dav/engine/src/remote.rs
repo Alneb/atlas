@@ -27,6 +27,7 @@ impl Remote {
         match card.server {
             Server::Caldav => Client::new(&card.account).map(Remote::Dav),
             Server::Exchange => ews::Client::new(&card.account.user).map(Remote::Ews),
+            Server::Google => Client::google(&card.account.user).map(Remote::Dav),
         }
     }
 

@@ -2886,6 +2886,8 @@ struct VaultRun {
     planned: Option<tokio::task::JoinHandle<()>>,
     /// The buttons pressed on its notifications (notice_actions.rs), answered where they are shown.
     pressed: Option<tokio::task::JoinHandle<()>>,
+    /// Its plugins kept at the release's versions (plugin_auto_update.rs); none where that must not run.
+    plugin_updates: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl VaultRun {
@@ -2894,7 +2896,7 @@ impl VaultRun {
         for t in [&self.scheduler, &self.hooks, &self.merges] {
             t.abort();
         }
-        for t in [&self.notices, &self.planned, &self.pressed].into_iter().flatten() {
+        for t in [&self.notices, &self.planned, &self.pressed, &self.plugin_updates].into_iter().flatten() {
             t.abort();
         }
     }
@@ -3214,7 +3216,8 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
             eprintln!("atlas: plugin {id}: its helper did not start with the vault: {e}");
         }
     }
-    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges, notices, planned, pressed }, state))
+    let plugin_updates = crate::plugin_auto_update::spawn(state.ws.clone(), state.bus.clone(), state.helpers.clone());
+    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges, notices, planned, pressed, plugin_updates }, state))
 }
 
 #[cfg(test)]

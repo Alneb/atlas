@@ -8,7 +8,7 @@ export interface Folder { account: string; path: string; label: string; role: st
  *  it is the sign-in (no password, refused, expired). */
 export interface Status { state: "syncing" | "idle" | "error" | "offline"; trouble?: "sign-in" | "connection" | "other"; error?: string; errors?: string[] }
 export interface Account {
-  name: string; user?: string; from?: string; main?: boolean; own?: string[]; identities?: string[]; outlook?: boolean;
+  name: string; user?: string; from?: string; main?: boolean; own?: string[]; identities?: string[]; outlook?: boolean; google?: boolean;
   unread?: number; status?: Status | null; syncing?: boolean; signature?: string; error?: string;
 }
 export interface Row {

@@ -391,7 +391,7 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
 }
 
 /// A plugin a release offers (its `plugins.json`, written by scripts/dev/plugin-pack.mjs), as "Install a plugin" lists it.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
 pub struct Available {
     pub id: String,
@@ -677,7 +677,7 @@ pub fn sync_bundled(root: &Path, bundled: &Path) -> BundledReport {
             BundledStep::Leave(why) => report.left.push(left(why)),
             BundledStep::Update { from } => {
                 let before = source_record(root, &id);
-                let updated = reinstall(root, &id, &Source::Folder(dir.clone())).and_then(|_| keep_origin(root, &id, before.as_ref()));
+                let updated = reinstall(root, &id, &Source::Folder(dir.clone())).and_then(|_| keep_origin(root, &id, before.as_ref(), Origin::Reachable));
                 match updated {
                     Ok(()) => report.updated.push(BundledChange { id: id.clone(), title: m.title.clone(), from, to: m.version.clone(), replaces: vec![] }),
                     Err(e) => report.left.push(left(format!("the update failed: {e}"))),
@@ -692,20 +692,72 @@ pub fn sync_bundled(root: &Path, bundled: &Path) -> BundledReport {
     report
 }
 
-/// After an update from the app's carried copy: a `.source` that pointed somewhere every device reaches (a release's
-/// address, a git repository) keeps pointing there, so `atlas plugin update` on a desktop sharing the vault still
-/// works; the record of what was installed (`shipped`, `digest`) is the new one's.
-fn keep_origin(root: &Path, id: &str, before: Option<&toml::Table>) -> Result<()> {
-    let reachable = |t: &toml::Table| matches!(t.get("kind").and_then(|v| v.as_str()), Some("git" | "download"));
-    let (Some(old), Some(mut now)) = (before.filter(|t| reachable(t)), source_record(root, id)) else { return Ok(()) };
+/// Which origin an update made from elsewhere keeps in `.source`.
+#[derive(Clone, Copy)]
+enum Origin {
+    /// Only one every device reaches (a release's address, a git repository): an update from the app's carried copy.
+    Reachable,
+    /// Whatever it was (a folder too): an automatic update from the release, which must not turn a plugin installed
+    /// from a working copy into one that `atlas plugin update` fetches from the release.
+    Any,
+}
+
+/// After an update from somewhere other than the plugin's `.source` (the app's carried copy, the release): the old
+/// origin, as `keep` allows, stays, so `atlas plugin update` still goes back there; the record of what was installed
+/// (`shipped`, `digest`) is the new one's.
+fn keep_origin(root: &Path, id: &str, before: Option<&toml::Table>, keep: Origin) -> Result<()> {
+    let kept = |t: &toml::Table| match keep {
+        Origin::Reachable => matches!(t.get("kind").and_then(|v| v.as_str()), Some("git" | "download")),
+        Origin::Any => t.get("from").is_some(),
+    };
+    let (Some(old), Some(mut now)) = (before.filter(|t| kept(t)), source_record(root, id)) else { return Ok(()) };
     for k in ["kind", "from"] {
         if let Some(v) = old.get(k) {
             now.insert(k.into(), v.clone());
         }
     }
-    now.remove("commit"); // the carried copy is not that commit
+    now.remove("commit"); // the copy installed is not that commit
     let text = toml::to_string(&now).map_err(|e| Error::BadRequest(format!("{SOURCE_FILE}: {e}")))?;
-    vault_write::write(&root.join(PLUGINS_DIR).join(id).join(SOURCE_FILE), format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there); updated from the copy an app carries.\n{text}").as_bytes())
+    let how = match keep { Origin::Reachable => "the copy an app carries", Origin::Any => "the release, by itself" };
+    vault_write::write(&root.join(PLUGINS_DIR).join(id).join(SOURCE_FILE), format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there); updated from {how}.\n{text}").as_bytes())
+}
+
+// ---- updating by itself from the release (`[plugins] auto_update`; server.rs `auto_update_plugins` runs it) -----------
+
+/// What one plugin is, against the release's index, for an automatic update: an exhaustive set, decided before
+/// anything is written.
+#[derive(Debug, PartialEq)]
+pub enum AutoStep {
+    /// Installed, older than the release, built for this platform and unchanged here: install the release over it.
+    Update(Available),
+    /// Newer in the release but changed in this vault since it was installed: left, and said why.
+    Leave(BundledLeft),
+}
+
+/// The vault's plugins the release at `index` has newer, each with what to do. Not installed, not newer, or not built
+/// for this platform: not listed (nothing to do, nothing to say).
+pub fn auto_candidates(root: &Path, index: &str) -> Result<Vec<AutoStep>> {
+    Ok(available(root, index)?
+        .into_iter()
+        .filter(|a| a.update && a.runs_here)
+        .map(|a| {
+            if changed_here(root, &a.id) {
+                let why = format!("changed in this vault since it was installed ({} here, {} in the release)", a.installed.as_deref().unwrap_or("no version"), a.version.as_deref().unwrap_or("?"));
+                AutoStep::Leave(BundledLeft { id: a.id, title: a.title, why })
+            } else {
+                AutoStep::Update(a)
+            }
+        })
+        .collect())
+}
+
+/// One plugin of [`auto_candidates`] brought to the release's version, through the install path (its settings and own
+/// files kept, the old copy to the trash); its `.source` keeps pointing where it was installed from.
+pub fn auto_update_one(root: &Path, a: &Available) -> Result<BundledChange> {
+    let before = source_record(root, &a.id);
+    reinstall(root, &a.id, &Source::parse(&a.url))?;
+    keep_origin(root, &a.id, before.as_ref(), Origin::Any)?;
+    Ok(BundledChange { id: a.id.clone(), title: a.title.clone(), from: a.installed.clone(), to: a.version.clone(), replaces: vec![] })
 }
 
 /// Plugin `id` of those an app carries, added to a vault that lacks it (the person chose it in Settings).
@@ -1061,6 +1113,38 @@ mod tests {
         assert_eq!((got[0].runs_here, got[0].installed.as_deref()), (true, Some("1.0.0")));
         assert_eq!((got[1].runs_here, got[1].installed.as_deref()), (false, None));
         assert!(available(vault.path(), "").unwrap().is_empty(), "no index set: nothing offered");
+    }
+
+    /// Updating by itself: a newer release over an unchanged plugin (its own files kept, its `.source` still the folder
+    /// it came from); one changed in the vault is left, with why.
+    #[test]
+    fn a_newer_release_updates_an_unchanged_plugin_and_leaves_a_changed_one() {
+        let (vault, old, new) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        source(old.path(), "1.0.0");
+        install(vault.path(), &Source::Folder(old.path().join("dice-plugin")), Some("dice"), false).unwrap();
+        let dir = vault.path().join(PLUGINS_DIR).join("dice");
+        std::fs::write(dir.join("rolls.json"), "[6]").unwrap(); // a file the plugin made: survives
+        let index = serde_json::json!([{"id": "dice", "title": "Dice", "version": "1.1.0", "tier": "beta", "file": "atlas-plugin-dice.tar.gz", "platforms": "any"}]);
+        let at = |port: u16| format!("http://127.0.0.1:{port}/releases/latest/download/plugins.json");
+        let steps = auto_candidates(vault.path(), &at(serve_once(index.to_string().into_bytes()))).unwrap();
+        let [AutoStep::Update(a)] = &steps[..] else { panic!("one update: {steps:?}") };
+        // the release's archive, served where the update fetches it
+        source(new.path(), "1.1.0");
+        let tar = new.path().join("pack.tar.gz");
+        assert!(std::process::Command::new("tar").arg("-czf").arg(&tar).arg("-C").arg(new.path()).arg("dice-plugin").status().unwrap().success());
+        let a = Available { url: format!("http://127.0.0.1:{}/atlas-plugin-dice.tar.gz", serve_once(std::fs::read(&tar).unwrap())), ..a.clone() };
+        let done = auto_update_one(vault.path(), &a).unwrap();
+        assert_eq!((done.from.as_deref(), done.to.as_deref()), (Some("1.0.0"), Some("1.1.0")));
+        assert_eq!(vault_version(vault.path(), "dice").as_deref(), Some("1.1.0"));
+        assert_eq!(std::fs::read_to_string(dir.join("rolls.json")).unwrap(), "[6]", "its own file kept");
+        let rec = source_record(vault.path(), "dice").unwrap();
+        assert_eq!(rec.get("kind").and_then(|v| v.as_str()), Some("folder"), "still updated from where it was installed: {rec:?}");
+        // the same plugin changed by hand, a newer release again: left, with the reason
+        std::fs::write(dir.join("main.js"), "// mine").unwrap();
+        let newer = serde_json::json!([{"id": "dice", "title": "Dice", "version": "1.2.0", "tier": "beta", "file": "atlas-plugin-dice.tar.gz", "platforms": "any"}]);
+        let steps = auto_candidates(vault.path(), &at(serve_once(newer.to_string().into_bytes()))).unwrap();
+        let [AutoStep::Leave(l)] = &steps[..] else { panic!("left: {steps:?}") };
+        assert!(l.why.contains("changed in this vault"), "{}", l.why);
     }
 
     /// A release asset's address: fetched (here from a one-shot local server), unpacked, and kept as the source.

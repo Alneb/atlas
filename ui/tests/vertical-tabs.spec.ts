@@ -230,3 +230,21 @@ test("a tab dropped on the first row lands above it, with nothing pinned", async
   await expect.poll(async () => (await rowTitles(page))[1]).toBe(now.at(-1));
   void second;
 });
+
+// With a terminal open, its section stands above the editor tabs. Nothing above a dragged row may move as the drag
+// starts: WebKit (the desktop app) ends a drag whose source moved under the pointer, so no editor tab could be dragged
+// while the terminal section grew a drop strip under its last row. Chromium forgives it, hence a layout check.
+test("starting a drag moves nothing above the dragged row (a terminal section above the editor tabs)", async ({ page }) => {
+  await page.keyboard.press("Control+`");
+  await expect(page.locator(".xterm").first()).toBeVisible();
+  for (const [q, name] of [["journal", "journal.md"], ["run.py", "run.py"]]) await openFile(page, q, name);
+  await expect(side(page).locator('.group[aria-label="Terminal"] .tab')).not.toHaveCount(0);
+  const target = row(page, "run.py");
+  const before = (await target.boundingBox())!.y;
+  const dt = await page.evaluateHandle(() => new DataTransfer());
+  await target.dispatchEvent("dragstart", { dataTransfer: dt });
+  await expect(target).toHaveClass(/dragging/); // the drag state is drawn…
+  await expect(side(page).locator(".end-drop")).toHaveCount(1); // …with the drop strip of its own section only
+  expect((await target.boundingBox())!.y).toBe(before);
+  await target.dispatchEvent("dragend", { dataTransfer: dt });
+});

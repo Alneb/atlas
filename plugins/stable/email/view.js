@@ -229,7 +229,7 @@ function Ne(e, t) {
 				J("click", t, () => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: T(r).name }))), c(e, t);
 			};
 			v(u, (e) => {
-				T(r).outlook && e(d);
+				(T(r).outlook || T(r).google) && e(d);
 			});
 			var f = Y(u, 2);
 			q(i), E(() => n(l, T(r).error ?? T(r).status?.error)), J("click", f, () => t.mail.atlas.plugin.openSettings()), c(e, i);
@@ -4074,7 +4074,7 @@ function Rr(e, r) {
 	let u = (e) => T(i).some((t) => t.name === e.record.name || t.user && t.user === e.record.user);
 	async function d(e, t) {
 		try {
-			O(i, [...T(i), t.record], !0), await r.atlas.plugin.saveSettings({ accounts: T(i) }), s[e] = t.record.auth === "outlook" ? "Added: now “Sign in to Outlook” on its card." : "Added: now type its password on its card (an app password for Gmail).";
+			O(i, [...T(i), t.record], !0), await r.atlas.plugin.saveSettings({ accounts: T(i) }), s[e] = t.record.auth === "outlook" ? "Added: now its card's Sign in button." : "Added: now type its password on its card (an app password for Gmail).";
 		} catch (n) {
 			O(i, T(i).filter((e) => e !== t.record), !0), s[e] = `Not added: ${n.message ?? n}`;
 		}
@@ -4230,62 +4230,62 @@ function Rr(e, r) {
 }
 d(["click", "change"]);
 // plugins/stable/email/ui/src/SignIn.svelte
-var zr = C("<p class=\"svelte-1gsd9hw\">No account signs in with Outlook: set one's Sign-in to <b class=\"svelte-1gsd9hw\">outlook</b> in Email's settings.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open Email's settings</button></div>", 1), Br = C("<small class=\"svelte-1gsd9hw\"> </small>"), Vr = C("<li class=\"svelte-1gsd9hw\"><button class=\"pick svelte-1gsd9hw\"><b class=\"svelte-1gsd9hw\"> </b><!></button></li>"), Hr = C("<p class=\"svelte-1gsd9hw\">Which account?</p> <ul class=\"svelte-1gsd9hw\"></ul>", 1), Ur = C("<p class=\"hint svelte-1gsd9hw\"> </p>"), Wr = C("<p class=\"svelte-1gsd9hw\">On the Microsoft page, type this code and sign in as <b class=\"svelte-1gsd9hw\"> </b>:</p> <div class=\"code svelte-1gsd9hw\"><span class=\"svelte-1gsd9hw\"> </span><button class=\"svelte-1gsd9hw\"> </button></div>", 1), Gr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> on the Microsoft page in your browser.</p>"), Kr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> in the window that opened.</p>"), qr = C("<form class=\"row svelte-1gsd9hw\"><input aria-label=\"Return address\" placeholder=\"If it ends on a page that does not load: its https://localhost/… address\" class=\"svelte-1gsd9hw\"/> <button type=\"submit\" class=\"svelte-1gsd9hw\">Finish</button></form>"), Jr = C("<p class=\"hint svelte-1gsd9hw\"><span class=\"dot svelte-1gsd9hw\"></span>Atlas finishes by itself when Microsoft sends you back.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open the Microsoft page again</button></div>", 1), Yr = C("<!> <!>", 1), Xr = C("<p class=\"ok svelte-1gsd9hw\"> </p>"), Zr = C("<p class=\"err svelte-1gsd9hw\"> </p> <div class=\"go svelte-1gsd9hw\"><button class=\"primary svelte-1gsd9hw\">Try again</button></div>", 1), Qr = C("<div class=\"si svelte-1gsd9hw\"><!> <div class=\"go end svelte-1gsd9hw\"><button> </button></div></div>"), $r = {
+var zr = C("<p class=\"svelte-1gsd9hw\">No account signs in on a provider's page: set one's Sign-in to <b class=\"svelte-1gsd9hw\">outlook</b> or <b class=\"svelte-1gsd9hw\">google</b> in Email's settings.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open Email's settings</button></div>", 1), Br = C("<small class=\"svelte-1gsd9hw\"> </small>"), Vr = C("<li class=\"svelte-1gsd9hw\"><button class=\"pick svelte-1gsd9hw\"><b class=\"svelte-1gsd9hw\"> </b><!></button></li>"), Hr = C("<p class=\"svelte-1gsd9hw\">Which account?</p> <ul class=\"svelte-1gsd9hw\"></ul>", 1), Ur = C("<p class=\"hint svelte-1gsd9hw\"> </p>"), Wr = C("<p class=\"svelte-1gsd9hw\">On the Microsoft page, type this code and sign in as <b class=\"svelte-1gsd9hw\"> </b>:</p> <div class=\"code svelte-1gsd9hw\"><span class=\"svelte-1gsd9hw\"> </span><button class=\"svelte-1gsd9hw\"> </button></div>", 1), Gr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> </p>"), Kr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> in the window that opened.</p>"), qr = C("<form class=\"row svelte-1gsd9hw\"><input aria-label=\"Return address\" placeholder=\"If it ends on a page that does not load: its https://localhost/… address\" class=\"svelte-1gsd9hw\"/> <button type=\"submit\" class=\"svelte-1gsd9hw\">Finish</button></form>"), Jr = C("<p class=\"hint svelte-1gsd9hw\"><span class=\"dot svelte-1gsd9hw\"></span> </p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\"> </button></div>", 1), Yr = C("<!> <!>", 1), Xr = C("<p class=\"ok svelte-1gsd9hw\"> </p>"), Zr = C("<p class=\"err svelte-1gsd9hw\"> </p> <div class=\"go svelte-1gsd9hw\"><button class=\"primary svelte-1gsd9hw\">Try again</button></div>", 1), Qr = C("<div class=\"si svelte-1gsd9hw\"><!> <div class=\"go end svelte-1gsd9hw\"><button> </button></div></div>"), $r = {
 	hash: "svelte-1gsd9hw",
 	code: ".si.svelte-1gsd9hw {display:flex;flex-direction:column;gap:10px;height:100%;min-height:0;overflow:auto;padding:16px;box-sizing:border-box;background:var(--bg);color:var(--text);}p.svelte-1gsd9hw {margin:0;}.hint.svelte-1gsd9hw, small.svelte-1gsd9hw {color:var(--text-muted);font-size:.9em;}.ok.svelte-1gsd9hw {color:var(--success, #2a7);}.err.svelte-1gsd9hw {color:var(--danger, #c33);overflow-wrap:anywhere;}ul.svelte-1gsd9hw {margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;}.pick.svelte-1gsd9hw {width:100%;display:flex;flex-direction:column;align-items:flex-start;text-align:left;}.code.svelte-1gsd9hw {display:flex;align-items:center;gap:12px;}.code.svelte-1gsd9hw span:where(.svelte-1gsd9hw) {font:600 1.6em var(--font-mono, monospace);letter-spacing:.12em;padding:6px 12px;border:1px solid var(--border);border-radius:8px;user-select:all;}.row.svelte-1gsd9hw {display:flex;gap:8px;}input.svelte-1gsd9hw {flex:1;min-width:0;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;}.go.svelte-1gsd9hw {display:flex;gap:8px;}.go.end.svelte-1gsd9hw {justify-content:flex-end;margin-top:auto;}button.svelte-1gsd9hw {padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font:inherit;}button.primary.svelte-1gsd9hw {background:var(--accent);border-color:var(--accent);color:var(--accent-text, #fff);}button.svelte-1gsd9hw:disabled {opacity:.5;cursor:default;}.dot.svelte-1gsd9hw {display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--accent); animation: svelte-1gsd9hw-pulse 1.2s ease-in-out infinite;}\n  @keyframes svelte-1gsd9hw-pulse { 50% { opacity: .25; } }"
 };
 function ei(e, t) {
 	M(t, !0), g(e, $r);
-	let r = w(() => (t.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name && e.auth === "outlook")), o = K(z(w(() => t.account ?? t.record?.name ?? (r.length === 1 ? r[0].name : "")))), s = K(z(w(() => T(o) ? { kind: "starting" } : { kind: "choose" }))), d = K(""), f = !1, p = (e) => void H(t.atlas, "signin_reopen", { url: e }).catch(() => window.open(e, "_blank")), h = () => {
-		f || (O(s, { kind: "done" }, !0), window.dispatchEvent(new CustomEvent("atlas-email:signed-in", { detail: { account: T(o) } })), H(t.atlas, "watch", {}, 30).catch(() => {}));
-	}, y = (e) => {
-		f || O(s, {
+	let r = w(() => (t.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name && (e.auth === "outlook" || e.auth === "google"))), o = K(z(w(() => t.account ?? t.record?.name ?? (r.length === 1 ? r[0].name : "")))), s = X(() => (t.record?.name === T(o) ? t.record : r.find((e) => e.name === T(o)))?.auth === "google" ? "Google" : "Microsoft"), d = K(z(w(() => T(o) ? { kind: "starting" } : { kind: "choose" }))), f = K(""), p = !1, h = (e) => void H(t.atlas, "signin_reopen", { url: e }).catch(() => window.open(e, "_blank")), y = () => {
+		p || (O(d, { kind: "done" }, !0), window.dispatchEvent(new CustomEvent("atlas-email:signed-in", { detail: { account: T(o) } })), H(t.atlas, "watch", {}, 30).catch(() => {}));
+	}, b = (e) => {
+		p || O(d, {
 			kind: "failed",
 			why: String(e?.message ?? e)
 		}, !0);
-	}, b = !1;
-	function S(e) {
-		!b && e.trim() && (b = !0, H(t.atlas, "signin_finish", {
+	}, S = !1;
+	function C(e) {
+		!S && e.trim() && (S = !0, H(t.atlas, "signin_finish", {
 			redirect: e.trim(),
 			account: T(o)
-		}, 60).then(h, (e) => {
-			b = !1, y(e);
+		}, 60).then(y, (e) => {
+			S = !1, b(e);
 		}));
 	}
-	async function C() {
-		O(s, { kind: "starting" }, !0), b = !1;
+	async function D() {
+		O(d, { kind: "starting" }, !0), S = !1;
 		try {
 			let e = await H(t.atlas, "signin_start", t.record && t.record.name === T(o) ? { record: t.record } : { account: T(o) }, 60);
-			if (f) return;
+			if (p) return;
 			if (e.flow === "automatic" || e.flow === "code") {
 				let n = !1;
-				return e.code && (n = await navigator.clipboard?.writeText(e.code).then(() => !0, () => !1) ?? !1), e.opened || p(e.url), O(s, {
+				return e.code && (n = await navigator.clipboard?.writeText(e.code).then(() => !0, () => !1) ?? !1), e.opened || h(e.url), O(d, {
 					kind: "waiting",
 					flow: e.flow,
 					url: e.url,
 					code: e.code,
 					copied: n
-				}, !0), await H(t.atlas, "signin_finish", { account: T(o) }, e.flow === "code" ? 900 : 660), h();
+				}, !0), await H(t.atlas, "signin_finish", { account: T(o) }, e.flow === "code" ? 900 : 660), y();
 			}
-			O(s, {
+			O(d, {
 				kind: "waiting",
 				flow: "window",
 				url: e.url
-			}, !0), (t.atlas.signIn ? t.atlas.signIn(e.url, e.redirect ?? "https://localhost") : (window.open(e.url, "_blank"), null))?.then(S, () => {});
+			}, !0), (t.atlas.signIn ? t.atlas.signIn(e.url, e.redirect ?? "https://localhost") : (window.open(e.url, "_blank"), null))?.then(C, () => {});
 		} catch (e) {
-			y(e);
+			b(e);
 		}
 	}
-	w(() => T(s).kind === "starting") && C(), _(() => () => {
-		f = !0;
+	w(() => T(d).kind === "starting") && D(), _(() => () => {
+		p = !0;
 	});
-	let D = (e) => navigator.clipboard?.writeText(e).then(() => {
-		T(s).kind === "waiting" && O(s, {
-			...T(s),
+	let k = (e) => navigator.clipboard?.writeText(e).then(() => {
+		T(d).kind === "waiting" && O(d, {
+			...T(d),
 			copied: !0
 		}, !0);
 	}, () => {});
-	var k = Qr(), A = N(k), j = (e) => {
+	var A = Qr(), j = N(A), P = (e) => {
 		var i = x(), a = Z(i), s = (e) => {
 			var n = zr(), r = Y(Z(n), 2), i = G(r);
 			J("click", i, () => t.atlas.plugin.openSettings()), c(e, n);
@@ -4299,66 +4299,72 @@ function ei(e, t) {
 				v(l, (e) => {
 					T(t).user && e(u);
 				}), q(i), q(r), E(() => n(s, T(t).name)), J("click", i, () => {
-					O(o, T(t).name, !0), C();
+					O(o, T(t).name, !0), D();
 				}), c(e, r);
 			}), q(i), c(e, t);
 		};
 		v(a, (e) => {
 			r.length ? e(u, -1) : e(s);
 		}), c(e, i);
-	}, P = (e) => {
-		var t = Ur(), r = G(t);
-		E(() => n(r, `Asking Microsoft for a sign-in for ${T(o) ?? ""}…`)), c(e, t);
 	}, I = (e) => {
+		var t = Ur(), r = G(t);
+		E(() => n(r, `Asking ${T(s) ?? ""} for a sign-in for ${T(o) ?? ""}…`)), c(e, t);
+	}, L = (e) => {
 		var t = Yr(), r = Z(t), l = (e) => {
 			var t = Wr(), r = Z(t), i = Y(N(r)), a = G(i, !0);
 			F(), q(r);
-			var l = Y(r, 2), u = N(l), d = G(u, !0), f = Y(u), p = G(f, !0);
-			q(l), E(() => {
-				n(a, T(o)), n(d, T(s).code), n(p, T(s).copied ? "Copied" : "Copy");
-			}), J("click", f, () => D(T(s).kind === "waiting" ? T(s).code ?? "" : "")), c(e, t);
-		}, f = (e) => {
-			var t = Gr(), r = Y(N(t)), i = G(r, !0);
-			F(), q(t), E(() => n(i, T(o))), c(e, t);
+			var s = Y(r, 2), l = N(s), u = G(l, !0), f = Y(l), p = G(f, !0);
+			q(s), E(() => {
+				n(a, T(o)), n(u, T(d).code), n(p, T(d).copied ? "Copied" : "Copy");
+			}), J("click", f, () => k(T(d).kind === "waiting" ? T(d).code ?? "" : "")), c(e, t);
+		}, p = (e) => {
+			var t = Gr(), r = Y(N(t)), i = G(r, !0), a = Y(r);
+			q(t), E(() => {
+				n(i, T(o)), n(a, ` on the ${T(s) ?? ""} page in your browser.`);
+			}), c(e, t);
 		}, m = (e) => {
 			var t = Kr(), r = Y(N(t)), i = G(r, !0);
 			F(), q(t), E(() => n(i, T(o))), c(e, t);
 		};
 		v(r, (e) => {
-			T(s).flow === "code" ? e(l) : T(s).flow === "automatic" ? e(f, 1) : e(m, -1);
+			T(d).flow === "code" ? e(l) : T(d).flow === "automatic" ? e(p, 1) : e(m, -1);
 		});
-		var h = Y(r, 2), g = (e) => {
+		var g = Y(r, 2), _ = (e) => {
 			var t = qr(), n = N(t);
 			i(n);
 			var r = Y(n, 2);
-			q(t), E((e) => r.disabled = e, [() => !T(d).trim()]), u("submit", t, (e) => {
-				e.preventDefault(), S(T(d));
-			}), a(n, () => T(d), (e) => O(d, e)), c(e, t);
-		}, _ = (e) => {
-			var t = Jr(), n = Y(Z(t), 2), r = G(n);
-			J("click", r, () => T(s).kind === "waiting" && p(T(s).url)), c(e, t);
+			q(t), E((e) => r.disabled = e, [() => !T(f).trim()]), u("submit", t, (e) => {
+				e.preventDefault(), C(T(f));
+			}), a(n, () => T(f), (e) => O(f, e)), c(e, t);
+		}, y = (e) => {
+			var t = Jr(), r = Z(t), i = Y(N(r));
+			q(r);
+			var a = Y(r, 2), o = N(a), l = G(o);
+			q(a), E(() => {
+				n(i, `Atlas finishes by itself when ${T(s) ?? ""} sends you back.`), n(l, `Open the ${T(s) ?? ""} page again`);
+			}), J("click", o, () => T(d).kind === "waiting" && h(T(d).url)), c(e, t);
 		};
-		v(h, (e) => {
-			T(s).flow === "window" ? e(g) : e(_, -1);
+		v(g, (e) => {
+			T(d).flow === "window" ? e(_) : e(y, -1);
 		}), c(e, t);
-	}, L = (e) => {
+	}, ee = (e) => {
 		var t = Xr(), r = G(t);
 		E(() => n(r, `Signed in: ${T(o) ?? ""}'s mail can be read now.`)), c(e, t);
-	}, ee = (e) => {
+	}, R = (e) => {
 		var t = Zr(), r = Z(t), i = G(r, !0), a = Y(r, 2), o = G(a);
-		E(() => n(i, T(s).why)), J("click", o, C), c(e, t);
+		E(() => n(i, T(d).why)), J("click", o, D), c(e, t);
 	};
-	v(A, (e) => {
-		T(s).kind === "choose" ? e(j) : T(s).kind === "starting" ? e(P, 1) : T(s).kind === "waiting" ? e(I, 2) : T(s).kind === "done" ? e(L, 3) : e(ee, -1);
+	v(j, (e) => {
+		T(d).kind === "choose" ? e(P) : T(d).kind === "starting" ? e(I, 1) : T(d).kind === "waiting" ? e(L, 2) : T(d).kind === "done" ? e(ee, 3) : e(R, -1);
 	});
-	var R = Y(A, 2), B = N(R);
-	let V;
-	var U = G(B, !0);
-	q(R), q(k), E(() => {
-		V = m(B, 1, "svelte-1gsd9hw", null, V, { primary: T(s).kind === "done" }), n(U, T(s).kind === "done" ? "Done" : "Close");
-	}), J("click", B, function(...e) {
+	var B = Y(j, 2), V = N(B);
+	let U;
+	var W = G(V, !0);
+	q(B), q(A), E(() => {
+		U = m(V, 1, "svelte-1gsd9hw", null, U, { primary: T(d).kind === "done" }), n(W, T(d).kind === "done" ? "Done" : "Close");
+	}), J("click", V, function(...e) {
 		t.onclose?.apply(this, e);
-	}), c(e, k), ce();
+	}), c(e, A), ce();
 }
 d(["click"]);
 // plugins/stable/email/ui/src/view.ts

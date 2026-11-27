@@ -53,6 +53,7 @@ pub mod pdf_columns;
 pub mod pdf_text;
 pub mod pdfium;
 pub mod plugin_files;
+pub mod plugin_auto_update;
 pub mod plugin_install;
 pub mod plugin_net;
 pub mod mpv;

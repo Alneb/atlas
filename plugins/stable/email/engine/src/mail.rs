@@ -163,7 +163,7 @@ impl Mail {
     pub async fn sign_in(&self, acc: &Account) -> Result<Imap, Fail> {
         let token = self.token(acc).await?;
         match Imap::connect(acc, token).await {
-            Err(e) if e.trouble == Trouble::SignIn && matches!(acc.auth, account::Auth::Outlook { .. }) => {
+            Err(e) if e.trouble == Trouble::SignIn && acc.auth.is_oauth() => {
                 oauth::forget(acc);
                 // a renewal Microsoft refuses now is a real sign-in trouble, said as such
                 let token = self.token(acc).await?;
