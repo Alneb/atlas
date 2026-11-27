@@ -43,16 +43,14 @@
 .side-tool { position: relative; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); transition: color .12s, background .12s; flex: none; }
 .side-tool:hover { color: var(--text); background: var(--bg-hover); }
 .side-tool:active { transform: scale(.96); }
-/* delayed tooltips: to the right by default (icons in a column), below in a row of buttons */
-.tipped { position: relative; }
-.tipped::after { content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%) translateX(-4px); white-space: nowrap;
+/* delayed tooltips: a `.tipped` button's `data-tip`, drawn by lib/tips.ts as one floating element over every panel
+   (a button's own ::after was cut off by the left bar's edge) */
+.tipped { position: relative; } /* a phone's larger target (base.css) is placed against it */
+.float-tip { position: fixed; z-index: 10000; max-width: min(420px, calc(100vw - 8px)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow-sm); padding: 4px 9px; border-radius: 7px;
-  font-size: calc(12px * var(--ui-scale, 1)); font-weight: 400; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 100; }
-.tipped:hover::after { opacity: 1; transform: translateY(-50%); transition-delay: .45s; }
-.side-toolbar.wide .tipped::after { left: 50%; top: calc(100% + 6px); transform: translateX(-50%) translateY(-2px); }
-.side-toolbar.wide .tipped:hover::after { transform: translateX(-50%); }
-.side-toolbar.wide .tipped:first-child::after { left: 0; transform: none; }
-.side-toolbar.wide .tipped:last-child:not(:first-child)::after { left: auto; right: 0; transform: none; }
+  font-size: calc(12px * var(--ui-scale, 1)); font-weight: 400; pointer-events: none; animation: float-tip-in .12s ease-out; }
+.float-tip[hidden] { display: none; }
+@keyframes float-tip-in { from { opacity: 0; } }
 .side-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; width: 36px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-muted); cursor: default;
   font-size: calc(13px * var(--ui-scale, 1)); outline: none; border: 1px solid transparent; transition: background .1s, color .1s; }
 .wide .side-row { width: auto; height: 32px; padding: 0 4px 0 calc(var(--side-inset) - 9px); justify-content: flex-start; } /* the icon on the bar's one left edge */

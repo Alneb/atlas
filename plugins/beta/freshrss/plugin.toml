@@ -33,6 +33,7 @@ name = "check"
 description = "Tell the user of FreshRSS articles that came since the last check (one notice), when they asked for notices in Settings. Run by itself every 30 minutes."
 input = {}
 schedule = "every 30m"
+background = "server" # one round for the vault: one notice, sent to every device; its state file has one writer
 
 [permissions]
 net = ["*"]

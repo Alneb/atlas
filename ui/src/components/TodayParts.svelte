@@ -384,7 +384,7 @@
         {#if show("log")}
         <section class="card">
           <div class="card-head">
-            <h2>{viewDay ? `Log — ${dayLabel(viewDay)}` : "Today's log"}</h2>
+            <h2 class="log-title">{viewDay ? `Log — ${dayLabel(viewDay)}` : "Today's log"}</h2>
             <!-- always there (the way to triage and to every capture), counting what waits -->
             <button class="triage-pill" class:idle={!untriaged} onclick={openCaptures} title="Every capture still to triage: make it a task, file it into a note, dismiss it" data-testid="untriaged"><Icon name="inbox" size={12} />{#if untriaged}{untriaged}<span class="pill-words"> to triage</span>{:else}Captures{/if}</button>
             <!-- one row of icons: open the day's note (made from the template when missing), then the days -->
@@ -537,10 +537,16 @@
   .today-btn { font-size: calc(12px * var(--ui-scale, 1)); padding: 0 6px; }
   .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 26px; }
   .card-head h2 { font-size: calc(12px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin: 0; }
-  /* a phone's width: the pill and the day arrows keep one line each, the title gives way (an ellipsis) */
+  /* a narrow card (a phone, a third of Home): the day arrows keep their line; the pill gives way first — its words
+     clip, its count stays — and the title only after, never below a word's room (it read "T…" beside "23 to triage") */
   .card-head { gap: 6px; min-width: 0; }
   .card-head h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-head .triage-pill, .card-head .day-nav { flex-shrink: 0; white-space: nowrap; }
+  /* the log's title beside the pill: a word's room before it gives way (every other card's head keeps its own size) */
+  .card-head h2.log-title { min-width: min(14ch, 100%); flex: 0 1 auto; }
+  .card-head .day-nav { flex-shrink: 0; white-space: nowrap; }
+  .card-head .triage-pill { flex-shrink: 20; white-space: nowrap; overflow: hidden; }
+  /* only the words give way: the pill's least is its icon and its count */
+  .card-head .pill-words { min-width: 0; overflow: hidden; }
   :global(html.phone) .card-head .pill-words { display: none; } /* the count alone, beside the inbox icon */
   .count { font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); font-variant-numeric: tabular-nums; background: var(--bg-hover); padding: 1px 8px; border-radius: 99px; }
   .empty { color: var(--text-faint); margin: 4px 0; font-size: calc(13.5px * var(--ui-scale, 1)); }

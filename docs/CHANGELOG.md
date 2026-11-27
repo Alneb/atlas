@@ -42,6 +42,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Fixed
 
+- A terminal follows the theme at once: it kept the previous theme's colours (white in a dark app) until the theme
+  changed again.
+- Tooltips of the left bar's buttons show whole: they were cut off at the bar's edge. Every button's tip is now one
+  floating label above all panels, kept inside the window.
+- Home's log card: its heading no longer shrinks to "T…" beside the captures pill; the pill's words give way first.
 - In a PDF, links to references and equations that led nowhere now jump: PDFium misses a named destination when the
   document's name tree has both names and branches at one level (some LaTeX theses), and the core now finds those
   itself.

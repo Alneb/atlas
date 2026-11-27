@@ -425,15 +425,16 @@
             <div class="actions"><button class="btn primary">Save</button><button type="button" class="btn" onclick={() => (form = null)}>Cancel</button></div>
           </form>
         {/if}
+        <!-- the seldom-used actions: "⋯" in the card's corner (at the end of the buttons it wrapped onto a row of its own) -->
+        {#if detail.actions.some((a) => a.more)}
+          {@const more = detail.actions.filter((a) => a.more)}
+          <button class="btn more-corner" title="More: {more.map((a) => a.label).join(', ')}" aria-label="More" onclick={(e) => moreMenu(e, more)}><Icon name="more" size={14} /></button>
+        {/if}
         {#if detail.kind}<div class="kind">{detail.kind}</div>{/if}
         <h2>{@html richTitle(detail.title)}</h2>
         {#each detail.lines ?? [] as l, n (n)}<p class={l.muted ? "venue" : "authors"}>{l.text}</p>{/each}
         <div class="actions">
           {#each detail.actions.filter((a) => !a.more) as a (a.label)}{@render button(a)}{/each}
-          {#if detail.actions.some((a) => a.more)}
-            {@const more = detail.actions.filter((a) => a.more)}
-            <button class="btn" title="More: {more.map((a) => a.label).join(', ')}" aria-label="More" onclick={(e) => moreMenu(e, more)}><Icon name="more" size={14} /></button>
-          {/if}
         </div>
         <!-- under the buttons: its picture (a paper's first page, a book's cover) beside its fields, whatever the layout -->
         {#if sel.cover || detail.fields?.length}
@@ -596,6 +597,7 @@
   dt { color: var(--text-faint); }
   dd { margin: 0; overflow-wrap: anywhere; }
   .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 8px; }
+  .more-corner { float: right; margin: -2px 0 4px 8px; padding: 0 8px; }
   .choice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 10px; }
   .choice span { color: var(--text-faint); font-size: .85em; margin-right: 2px; }
   .links { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0; }

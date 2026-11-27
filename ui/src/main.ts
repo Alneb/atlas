@@ -31,8 +31,10 @@ import "./styles/touch.css";
 import "./styles/shape-paper.css";
 import { attachPenBridge } from "./lib/pen-bridge";
 import { guardResizing } from "./lib/resize-guard";
+import { startTips } from "./lib/tips";
 // first, before any pointer listener: a Wacom pen in the Linux app arrives as a mouse (pen-bridge.ts)
 attachPenBridge();
+startTips(); // the buttons' delayed tooltips, drawn above every panel (tips.ts)
 guardResizing(); // a divider drag whose end was lost never leaves terminals without the pointer (resize-guard.ts)
 import { mount } from "svelte";
 import App from "./App.svelte";

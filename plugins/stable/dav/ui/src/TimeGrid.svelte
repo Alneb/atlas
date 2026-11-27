@@ -194,7 +194,7 @@
           onpointerdown={(ev) => taskDown(ev, b.e)} oncontextmenu={(ev) => onmenu(b.e, ev)}
           onclick={(ev) => { if (swallowClick) { swallowClick = false; return; } onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect()); }}
           title={blockable(b.e) ? `${b.e.summary} — drag it onto the hours to time-block it` : b.e.summary}>
-          {#if b.e.task}<span class="tbox" aria-hidden="true"></span>{:else if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}{b.e.summary || "(no title)"}
+          {#if b.e.task}<span class="tbox" aria-hidden="true"></span>{:else if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}<span class="bar-t">{b.e.summary || "(no title)"}</span>
         </button>
       {/each}
     </div>
@@ -255,6 +255,8 @@
   .lanecols { display: grid; grid-template-columns: repeat(var(--n), 1fr); grid-auto-rows: 22px; row-gap: 2px; padding: 3px 0; min-height: 26px; max-height: 120px; overflow-y: auto; }
   .lanecell { grid-row: 1 / span var(--rows); border-left: 1px solid var(--border); cursor: cell; }
   .bar { all: unset; box-sizing: border-box; cursor: pointer; z-index: 1; margin: 0 3px; padding: 0 8px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--c) 26%, var(--bg)); color: var(--text); font-size: 0.82em; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; border-left: 3px solid var(--c); }
+  /* the title in its own box: a flex container's bare text is cut with no ellipsis ("Reply to Mar") */
+  .bar-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .bar.clipl { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
   .bar.clipr { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c); flex: none; }

@@ -25,7 +25,9 @@
     return () => { offList(); offAt?.(); };
   });
   const current = $derived(list.find((e) => e.id === chosen || e.members?.includes(chosen)) ?? list[0]);
-  let source = $state<LibrarySource | null>(null);
+  // raw: a source is the plugin's own object (its functions, the arrays it fills after a load, as Immich's groupOrder);
+  // a deep $state copied its arrays into proxies, and what the plugin filled in later never reached the page
+  let source = $state.raw<LibrarySource | null>(null);
   let error = $state("");
 
   $effect(() => {

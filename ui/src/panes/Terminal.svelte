@@ -273,6 +273,14 @@
     const themeObs = new MutationObserver(() => {
       term.options.theme = themeFromCss();
       term.options.minimumContrastRatio = contrast();
+      // the WebGL renderer draws the first change with the previous colours (measured in WebKit: a dark app kept a white
+      // terminal until the theme changed again): the theme is applied once more on the next frame and every row redrawn
+      requestAnimationFrame(() => {
+        try {
+          term.options.theme = { ...themeFromCss() };
+          term.refresh(0, term.rows - 1);
+        } catch { /* the tab closed in between */ }
+      });
       if (themeNotify && ws?.readyState === WebSocket.OPEN) ws.send(enc.encode(themeReport()));
     });
     themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
