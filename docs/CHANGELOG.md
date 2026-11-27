@@ -7,12 +7,29 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Added
 
+- Paperless-ngx as a library (Paperless 0.2.0, now beta): the Libraries page's Documents lists every document with its
+  correspondent, type, tags and thumbnail; Open keeps its PDF and opens it in the PDF reader; Its note makes the
+  document's note through the catalog (`documents/<title>.md`, found again by its Paperless id); agents get
+  `paperless_search` and `paperless_get`; Send to Paperless (file and tab menus) uploads a vault file.
+- Immich as a library (Immich 0.2.0, now beta): the Libraries page's Photos by month and people, a photo opened in
+  Atlas's image viewer, a search by what is in the photos (listed as you type), Send to Immich, and `immich_search` for
+  agents.
+- FreshRSS as a reader (FreshRSS 0.3.0, now beta): your feeds by folder with unread counts, the articles, an article
+  drawn safely in the app's colours; read and starred marks kept on FreshRSS (Google Reader API, Fever as the fallback);
+  Keep makes a note of an article; `freshrss_read` gives agents an article's text.
+- JavaScript helpers can clean untrusted HTML (plugin API 37: `atlas.html.clean`), with the mail reader's own cleaner,
+  now shared (Email 1.12.1 uses it from the shared text crate): one way to make a mail's or a feed's HTML safe.
+- Plugins can upload a file form (plugin API 37: `fetch`'s `multipart`, a vault file as a part, text or secret fields
+  beside it).
+- The catalog's tests read every shipped plugin's `[contributes.catalog]`, so a typo in one fails there instead of
+  leaving a kind out at run time.
 - Gmail signs in with Google (OAuth2, as Thunderbird does; Email 1.12.0): a Gmail card with Sign-in `google` needs no
   app password, and the same sign-in lends Google Calendar to the Calendar plugin (Calendar 1.15.0: Server `google`,
   the Gmail address, nothing else to type). A Google Cloud client of your own can be put on the card.
 - Plugins update by themselves from the release: when a vault opens and every 6 hours, each plugin the release has
   newer (and built for this computer) is installed over, its settings and own files kept, the old copy to the trash;
-  one notice says what changed. A plugin changed in the vault is left alone, and a notice says so. Settings → Plugins → "Update plugins by
+  one notice says what changed. A plugin changed in the vault, or copied into it by hand (no install record), is
+  left alone, and a notice says so. Settings → Plugins → "Update plugins by
   themselves" switches it off (`[plugins] auto_update`). Not in a local copy of a server vault: the server updates it.
 - Settings → Vaults & sync lists, under each vault, its scheduled jobs and where each runs — here, on its server, on
   the devices, on other computers — with how the last run went (`GET /api/schedules`).

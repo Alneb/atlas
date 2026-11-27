@@ -229,7 +229,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     fetch: async (url, init = {}) => {
       const json = init.body !== undefined && typeof init.body !== "string";
       const r = await api.pluginFetch(p.id, {
-        url, method: init.method, timeout_secs: init.timeout, save_to: init.saveTo, save_in: init.saveIn, body_file: init.bodyFile, form: init.form,
+        url, method: init.method, timeout_secs: init.timeout, save_to: init.saveTo, save_in: init.saveIn, body_file: init.bodyFile, form: init.form, multipart: init.multipart,
         headers: { ...(json ? { "content-type": "application/json" } : {}), ...init.headers },
         body: init.body === undefined ? undefined : json ? JSON.stringify(init.body) : (init.body as string),
       });

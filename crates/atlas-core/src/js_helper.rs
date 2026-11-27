@@ -465,8 +465,11 @@ mod tests {
         std::thread::sleep(Duration::from_millis(250));
         assert!(!waited.over(limit), "waiting past the limit is not running past it");
         let busy = TurnStart::now();
-        let t0 = Instant::now();
-        while t0.elapsed() < Duration::from_millis(250) {
+        // spin until this thread has really run past the limit by its own clock: a busy runner (CI's macOS) gives a
+        // thread far less CPU than the wall time it spins, so a fixed 250 ms of spinning was not always 100 ms of
+        // running; the wall cap only keeps a broken clock from hanging the test
+        let (t0, cpu0) = (Instant::now(), crate::platform::proc::thread_cpu().unwrap_or_default());
+        while crate::platform::proc::thread_cpu().unwrap_or_default().saturating_sub(cpu0) < limit + Duration::from_millis(50) && t0.elapsed() < Duration::from_secs(10) {
             std::hint::black_box(0u64.wrapping_add(1));
         }
         assert!(busy.over(limit), "running past it is");

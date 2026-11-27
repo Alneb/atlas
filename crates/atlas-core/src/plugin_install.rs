@@ -740,15 +740,29 @@ pub fn auto_candidates(root: &Path, index: &str) -> Result<Vec<AutoStep>> {
     Ok(available(root, index)?
         .into_iter()
         .filter(|a| a.update && a.runs_here)
-        .map(|a| {
-            if changed_here(root, &a.id) {
-                let why = format!("changed in this vault since it was installed ({} here, {} in the release)", a.installed.as_deref().unwrap_or("no version"), a.version.as_deref().unwrap_or("?"));
+        .map(|a| match unchanged_install(root, &a.id) {
+            Ok(()) => AutoStep::Update(a),
+            Err(how) => {
+                let why = format!("{how} ({} here, {} in the release)", a.installed.as_deref().unwrap_or("no version"), a.version.as_deref().unwrap_or("?"));
                 AutoStep::Leave(BundledLeft { id: a.id, title: a.title, why })
-            } else {
-                AutoStep::Update(a)
             }
         })
         .collect())
+}
+
+/// Whether a plugin is provably as Atlas installed it — the only kind an update by itself may replace. Stricter than
+/// [`changed_here`] (the phone's carried copies, where the version alone decides without a record): a plugin with no
+/// install record (copied into the vault by hand, a test's fixture, a working copy) or one recorded before digests
+/// cannot be told apart from one edited, so it is left.
+fn unchanged_install(root: &Path, id: &str) -> std::result::Result<(), &'static str> {
+    let Some(t) = source_record(root, id) else { return Err("copied into the vault by hand (no install record), so left as it is") };
+    if t.get("digest").and_then(|v| v.as_str()).is_none() {
+        return Err("installed before Atlas recorded what it installed, so it cannot tell whether it was changed");
+    }
+    if changed_here(root, id) {
+        return Err("changed in this vault since it was installed");
+    }
+    Ok(())
 }
 
 /// One plugin of [`auto_candidates`] brought to the release's version, through the install path (its settings and own
@@ -1145,6 +1159,14 @@ mod tests {
         let steps = auto_candidates(vault.path(), &at(serve_once(newer.to_string().into_bytes()))).unwrap();
         let [AutoStep::Leave(l)] = &steps[..] else { panic!("left: {steps:?}") };
         assert!(l.why.contains("changed in this vault"), "{}", l.why);
+        // a plugin copied in by hand (no install record: a working copy, a test's fixture): never replaced
+        let hand = vault.path().join(PLUGINS_DIR).join("cards");
+        std::fs::create_dir_all(&hand).unwrap();
+        std::fs::write(hand.join("plugin.toml"), "title = \"Cards\"\n").unwrap();
+        let cards = serde_json::json!([{"id": "cards", "title": "Cards", "version": "2.0.0", "tier": "beta", "file": "atlas-plugin-cards.tar.gz", "platforms": "any"}]);
+        let steps = auto_candidates(vault.path(), &at(serve_once(cards.to_string().into_bytes()))).unwrap();
+        let [AutoStep::Leave(l)] = &steps[..] else { panic!("a hand copy is left: {steps:?}") };
+        assert!(l.why.contains("by hand"), "{}", l.why);
     }
 
     /// A release asset's address: fetched (here from a one-shot local server), unpacked, and kept as the source.

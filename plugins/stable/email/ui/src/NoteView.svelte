@@ -3,7 +3,7 @@
   // mail note, from the note alone — no server. The older messages folded to a line, the newest and the unread open;
   // Reply / Reply all / Forward find the message in the index and open the composer in the Email pane.
   import Icon from "./Icon.svelte";
-  import MailFrame from "./MailFrame.svelte";
+  import MailFrame from "../../../../../ui/src/components/HtmlFrame.svelte";
   import { call, hue, initials, type PluginApi } from "./api";
 
   let { atlas, note, onmail }: { atlas: PluginApi; note: { path: string; text: string; props: Record<string, unknown>; showNote(): void }; onmail: (detail: Record<string, unknown>) => void } = $props();

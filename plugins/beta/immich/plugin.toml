@@ -1,0 +1,48 @@
+# Immich, the user's photo server, in Atlas (docs/design/DESIGN-server-libraries.md: photos stay on Immich, never a copy
+# of the library): the Libraries page's Photos (the newest photos and videos by month, people as filters, a photo opened
+# in Atlas's image viewer — its file kept with the local copies of remote files), a search by what is in them (Immich's
+# smart search), Send to Immich for a vault picture, the block `immich.recent`, and the agent's tool to find a photo.
+title = "Immich"
+description = "your Immich photos: a library by month and people, a search by what is in them, Send to Immich, a tool for agents"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "image"
+version = "0.2.0"
+api = 28 # atlas.openLink (v28); pick's search (v35) and fetch's multipart (v37) are feature-detected
+
+[permissions]
+net = ["*"]          # the server is a setting
+secrets = true
+
+[[setting]]
+key = "server"
+label = "Immich address"
+kind = "text"
+hint = "https://photos.example.org — the address you open Immich at"
+
+[[setting]]
+key = "key"
+label = "API key"
+kind = "secret"
+hint = "Immich → Account settings → API keys (with the asset and search permissions; upload too for Send to Immich)"
+
+[[setting]]
+key = "device"
+label = "This device's name"
+kind = "text"
+default = "atlas"
+hint = "how Immich names the device a sent picture came from"
+
+[helper]
+js = "helper.js"                   # runs inside Atlas's core (QuickJS), built from helper/helper.ts
+idle = "10m"
+
+[[tool]]
+name = "search"
+description = "Find photos in the user's Immich library by what is in them, in words (Immich's smart search: \"the whiteboard with equations\", \"a dog on the beach\"). Returns each photo's file name, when and where it was taken, the people in it and its link."
+input = { query = "string", limit = "number?" }
+secrets = ["key"]
+timeout_secs = 90
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "untested" # tried against a stand-in of its API (immich.spec.ts), not a real Immich yet

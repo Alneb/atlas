@@ -620,6 +620,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "toml 0.9.12+spec-1.1.0",
  "url",
 ]
 
@@ -713,7 +714,6 @@ dependencies = [
 name = "atlas-email"
 version = "0.1.0"
 dependencies = [
- "ammonia",
  "async-imap",
  "atlas-plugin",
  "atlas-text",
@@ -849,6 +849,7 @@ dependencies = [
 name = "atlas-text"
 version = "0.1.0"
 dependencies = [
+ "ammonia",
  "chrono",
  "regex",
  "serde_yaml",
@@ -8026,6 +8027,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",

@@ -430,9 +430,11 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// `atlas.convert.unzstd` (a `.zst` read by the core's decoder: no `zstd` program, the phone too).
 /// v35 `atlas.pickNote` (the palette's note chooser) and `atlas.backlinks(path)` (the notes linking to a file).
 /// v36 `atlas.terminal.button` (a button on the plugin's own agent tabs) and `atlas.links` (resolve / open a wikilink).
+/// v37 `fetch`'s `multipart` (a vault file sent as a file form's part, text fields beside it: Paperless's upload) and the
+/// helpers' `atlas.html.clean` (untrusted HTML made safe for a frame: the mail reader's cleaner, for a feed's article).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 36;
+pub const API_VERSION: u32 = 37;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {

@@ -1,14 +1,18 @@
 <script lang="ts">
-  // A message's body (DESIGN-mail-ui §3 "Message body"): the engine's cleaned HTML in a sandboxed frame — no script of
-  // the mail runs (the engine strips them, the CSP's `script-src 'none'` refuses any left); its Content-Security-Policy lets nothing remote load unless the user allowed it for this mail or this sender,
-  // which is what really blocks tracking pictures. The frame grows to its content (one scrollbar, the reader's).
-  // Quoted earlier messages are folded behind "···" (Gmail, Outlook, Apple, Thunderbird, Yahoo, plain-text quotes).
+  // Untrusted HTML shown safely — a mail's body (DESIGN-mail-ui §3 "Message body"), a feed's article: HTML already
+  // cleaned by the one cleaner (atlas-text html.rs, `atlas.html.clean` for helpers) in a sandboxed frame — no script of
+  // it runs (the cleaner strips them, the CSP's `script-src 'none'` refuses any left); its Content-Security-Policy lets
+  // nothing remote load unless the user allowed it (`remote`), which is what really blocks tracking pictures. The frame
+  // grows to its content (one scrollbar, the pane's). Shared by the Email and FreshRSS plugins (their UIs import it).
+  // With `quotes`, a mail's earlier messages are folded behind "···" (Gmail, Outlook, Apple, Thunderbird, Yahoo,
+  // plain-text quotes); an article keeps its blockquotes open.
   // It wears the app's colours (the scheme's --bg, --text, --link…, read from the window and followed when the theme or
   // scheme changes). In a dark theme the mail's own colours are remapped — white made the app's surface, other light
   // backgrounds darkened, dark text made light, hues kept, pictures untouched — rather than the whole page inverted.
   // `atlas`: its links open as Atlas opens links (atlas.openLink, API 28), Shift+click in the system's browser
-  import type { PluginApi } from "./api";
-  let { html, plain = false, remote = false, prose = "", atlas }: { html: string; plain?: boolean; remote?: boolean; prose?: string; atlas?: PluginApi } = $props();
+  /** What the frame asks of the plugin's `atlas`: open a link as Atlas opens links, say where it went. */
+  type Links = { openLink?(url: string, o?: { outside?: boolean }): unknown; toast?(title: string, body?: string): unknown };
+  let { html, plain = false, remote = false, prose = "", atlas, title = "The message", quotes = true }: { html: string; plain?: boolean; remote?: boolean; prose?: string; atlas?: Links; title?: string; quotes?: boolean } = $props();
 
   /** The window's theme and scheme colours (palettes.css). */
   function appColours() {
@@ -146,7 +150,7 @@ mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark 
   function loaded() {
     const d = frame?.contentDocument;
     if (!d?.body) return;
-    fold(d);
+    if (quotes) fold(d);
     if (dark && !plain) remap(d);
     const fit = () => { height = Math.max(40, d.documentElement.scrollHeight); };
     fit();
@@ -186,7 +190,7 @@ mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark 
 
 <!-- allow-scripts: WebKit (the desktop app) fires no listener in a frame without it, not even the ones added above from
      this page (links, Ctrl+F, the height); the mail's own scripts are still refused by the CSP -->
-<iframe bind:this={frame} class="frame" title="The message" sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox" srcdoc={page} onload={loaded} style:height="{height}px" scrolling="no"></iframe>
+<iframe bind:this={frame} class="frame" {title} sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox" srcdoc={page} onload={loaded} style:height="{height}px" scrolling="no"></iframe>
 
 <style>
   .frame { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }

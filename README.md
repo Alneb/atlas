@@ -112,12 +112,12 @@ says what each tier promises and where each plugin stands. Each plugin's folder 
 |---|---|
 | Mail, calendar, people | [Email](plugins/stable/email), [Calendar (dav)](plugins/stable/dav), [Notifications](plugins/beta/notifications), [Plan](plugins/beta/plan) (nudges for tasks when they fit your day) |
 | Catalogue and references | [Catalog](plugins/beta/catalog) and its sources: [Science / References](plugins/beta/catalog-papers), [TMDB](plugins/beta/catalog-tmdb), [Books](plugins/beta/catalog-books), [Music](plugins/beta/catalog-music), [Manga and anime](plugins/beta/catalog-anime), [YouTube](plugins/beta/catalog-youtube), [Wikipedia](plugins/beta/catalog-wikipedia) (no keys), [Linkwarden](plugins/beta/catalog-linkwarden); services told about catalogued things: [Downloader](plugins/beta/downloader) (MeTube, TubeArchivist or your own) |
-| Reading | [Books](plugins/beta/books), [Manga](plugins/beta/manga), [Kiwix](plugins/beta/kiwix), [OCR](plugins/beta/ocr), [Rnote](plugins/beta/rnote) |
+| Reading | [Books](plugins/beta/books), [Manga](plugins/beta/manga), [Kiwix](plugins/beta/kiwix), [Paperless](plugins/beta/paperless) (your documents: a library, a note when one matters, tools for agents), [Immich](plugins/beta/immich) (your photos by month and people, a search by what is in them), [FreshRSS](plugins/beta/freshrss) (a feed reader with read and starred marks), [Jellyfin](plugins/beta/jellyfin), [OCR](plugins/beta/ocr), [Rnote](plugins/beta/rnote) |
 | Writing and output | [Export](plugins/beta/export) (LaTeX / PDF), [Print](plugins/beta/print), [Weather](plugins/beta/weather), [Today](plugins/beta/today) (the greeting, the day's log, the vault's map) |
 | Machines and files | [SSH](plugins/stable/ssh), [copyparty](plugins/beta/copyparty), [Run tools](plugins/beta/run-tools), [Syncthing](plugins/beta/syncthing), [Zstandard](plugins/beta/zstd) (`*.zst` opened as the file they hold) |
 | Money | [Finance](plugins/beta/finance) |
 | Agents | [Claude](plugins/beta/claude) |
-| To copy from (`plugins/examples/`, not released) | [Word count](plugins/examples/wordcount) (the smallest plugin), [Word stats](plugins/examples/helper-python) (a plugin with a helper), [TTRPG](plugins/examples/ttrpg) (most of the page side), small integrations: [FreshRSS](plugins/examples/freshrss), [Immich](plugins/examples/immich), [Jellyfin](plugins/examples/jellyfin), [Paperless](plugins/examples/paperless) |
+| To copy from (`plugins/examples/`, not released) | [Word count](plugins/examples/wordcount) (the smallest plugin), [Word stats](plugins/examples/helper-js) (a plugin with a helper the core runs), [TTRPG](plugins/examples/ttrpg) (most of the page side) |
 
 ## How it is built
 

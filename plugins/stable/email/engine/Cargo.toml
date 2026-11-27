@@ -30,7 +30,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 webpki-roots = "1"
 mail-parser = { version = "0.11", features = ["full_encoding"] }
 mail-builder = "1"
-ammonia = "4"
 rusqlite = { version = "0.32", features = ["bundled"] }
 ruzstd = "0.8" # kept bodies compressed (index.rs `pack`): pure Rust, so the static musl build and the phone too
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

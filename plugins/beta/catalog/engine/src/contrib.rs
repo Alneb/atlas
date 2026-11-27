@@ -249,6 +249,28 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Every plugin in the repository that gives the catalog something says it in a shape the catalog reads: a typo
+    /// there would otherwise only show at run time, as a kind or a source "left out".
+    #[test]
+    fn every_shipped_contribution_reads() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let mut seen = 0;
+        for tier in ["stable", "beta"] {
+            for dir in std::fs::read_dir(root.join(tier)).unwrap().flatten() {
+                let Ok(text) = std::fs::read_to_string(dir.path().join("plugin.toml")) else { continue };
+                let manifest: toml::Value = toml::from_str(&text).unwrap_or_else(|e| panic!("{:?}: {e}", dir.path()));
+                let Some(table) = manifest.get("contributes").and_then(|c| c.get("catalog")) else { continue };
+                let json = serde_json::to_value(table).unwrap();
+                let c: Contribution = serde_json::from_value(json).unwrap_or_else(|e| panic!("{:?}: [contributes.catalog]: {e}", dir.path()));
+                for p in &c.recognize {
+                    regex::Regex::new(&p.pattern).unwrap_or_else(|e| panic!("{:?}: pattern {:?}: {e}", dir.path(), p.pattern));
+                }
+                seen += 1;
+            }
+        }
+        assert!(seen >= 10, "only {seen} contributions found: the plugins folder moved?");
+    }
+
     #[test]
     fn a_bad_table_or_pattern_costs_only_its_piece() {
         let c = json!({

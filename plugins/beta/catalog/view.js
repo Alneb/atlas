@@ -2807,7 +2807,7 @@ function wa(e, t) {
 	Ee(2), k(f);
 	var m = B(f, 2), h = (e) => {
 		var n = xa();
-		Z(n, 23, () => t.options, (e) => e.value, (e, n, i) => {
+		Z(n, 21, () => t.options, qr, (e, n, i) => {
 			var a = ba();
 			let o;
 			var s = R(a), l = z(s, !0), u = B(s), d = (e) => {
@@ -2818,12 +2818,12 @@ function wa(e, t) {
 				G(n).note && e(d);
 			}), k(a), V(() => {
 				$(a, "aria-selected", G(n).value === t.value), o = Q(a, 1, "svelte-ifm9j5", null, o, {
-					on: G(i) === G(r),
+					on: i === G(r),
 					cur: G(n).value === t.value
 				}), Y(l, G(n).label);
 			}), K("mousedown", a, (e) => {
-				e.preventDefault(), c(G(i));
-			}), K("mousemove", a, () => I(r, G(i), !0)), J(e, a);
+				e.preventDefault(), c(i);
+			}), K("mousemove", a, () => I(r, i, !0)), J(e, a);
 		}), k(n), Wi(n, (e) => I(a, e), () => G(a)), J(e, n);
 	};
 	X(m, (e) => {

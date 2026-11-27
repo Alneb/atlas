@@ -226,7 +226,7 @@
     hostOf,
     url: Object.freeze({ quote, resolve }),
     text: Object.freeze({ title }),
-    html: Object.freeze({ select: (html, css) => native("html.select", { html: String(html ?? ""), css }), unescape: (text) => native("html.unescape", { text: String(text ?? "") }) }),
+    html: Object.freeze({ select: (html, css) => native("html.select", { html: String(html ?? ""), css }), unescape: (text) => native("html.unescape", { text: String(text ?? "") }), clean: (html) => native("html.clean", { html: String(html ?? "") }) }),
     csv: Object.freeze({ parse: (text, o = {}) => native("csv.parse", { text: String(text ?? ""), header: Boolean(o.header), delimiter: o.delimiter ?? "," }) }),
     zip: Object.freeze({ list: (path) => native("zip.list", { path }), read: (path, name) => native("zip.read", { path, name }) }),
     hash: Object.freeze({ sha256: (text) => native("hash.sha256", { text: String(text) }) }),

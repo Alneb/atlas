@@ -1,5 +1,5 @@
-//! A message's body made safe to show (DESIGN-mail-ui §3): the HTML cleaned (ammonia: no scripts, frames, forms or
-//! event handlers; the mail's own `<style>` kept, since newsletters are built on it), its cid: pictures put in place,
+//! A message's body made safe to show (DESIGN-mail-ui §3): the HTML cleaned by the one cleaner of untrusted HTML
+//! (atlas-text `html::clean`: no scripts, frames, forms or event handlers; the mail's own `<style>` kept), its cid: pictures put in place,
 //! remote content counted; a text-only mail turned into HTML (links, `>` quotes as nested bars, format=flowed rewrapped).
 //! The page puts the result in a sandboxed frame whose Content-Security-Policy is what really blocks remote content:
 //! nothing here has to find every way a mail can reach the network.
@@ -21,50 +21,17 @@ pub struct Rendered {
     pub plain: bool,
 }
 
-const TAGS: &[&str] = &[
-    "a", "abbr", "address", "article", "aside", "b", "bdi", "bdo", "big", "blockquote", "br", "caption", "center", "cite", "code", "col", "colgroup", "dd", "del",
-    "details", "dfn", "div", "dl", "dt", "em", "figcaption", "figure", "font", "footer", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "i", "img", "ins",
-    "kbd", "li", "main", "mark", "nav", "ol", "p", "picture", "pre", "q", "rp", "rt", "ruby", "s", "samp", "section", "small", "source", "span", "strike",
-    "strong", "style", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "tt", "u", "ul", "var", "wbr",
-];
-const ATTRS: &[&str] = &[
-    "align", "valign", "width", "height", "bgcolor", "color", "border", "cellpadding", "cellspacing", "dir", "lang", "title", "face", "size", "style", "class",
-    "id", "colspan", "rowspan", "span", "start", "type", "reversed", "nowrap", "background", "abbr", "scope", "headers", "summary", "frame", "rules", "hspace",
-    "vspace", "datetime", "cite", "open", "role", "aria-hidden", "aria-label", "name",
-];
-
 static CID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)cid:([^"'\s)>]+)"#).unwrap());
-static REMOTE_SRC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)(?:\bsrc|\bbackground|\bsrcset)\s*=\s*["']?\s*(?:https?:)?//"#).unwrap());
-static REMOTE_URL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)url\(\s*["']?\s*(?:https?:)?//"#).unwrap());
-static IMPORT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)@import\b"#).unwrap());
 static URL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)\b(?:https?://|www\.)[^\s<>"'()]+(?:\([^\s<>"'()]*\)[^\s<>"'()]*)*"#).unwrap());
 static MAILTO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"#).unwrap());
-
-fn cleaner() -> ammonia::Builder<'static> {
-    let mut b = ammonia::Builder::default();
-    b.tags(TAGS.iter().copied().collect())
-        .rm_clean_content_tags(["style"])
-        .clean_content_tags(["script", "title", "head", "noscript", "template", "iframe", "object", "embed", "form", "svg", "math"].into_iter().collect())
-        .generic_attributes(ATTRS.iter().copied().collect())
-        .add_tag_attributes("a", ["href", "target"])
-        .add_tag_attributes("img", ["src", "alt", "srcset", "loading"])
-        .add_tag_attributes("source", ["srcset", "media", "type"])
-        .url_schemes(["http", "https", "mailto", "tel", "cid", "data"].into_iter().collect())
-        .link_rel(Some("noopener noreferrer"))
-        .set_tag_attribute_value("a", "target", "_blank")
-        .strip_comments(true)
-        // a `name`/`id` from the mail must not shadow the frame's own (DOM clobbering): prefixed
-        .id_prefix(Some("m-"));
-    b
-}
 
 /// The body as the reader shows it. `images`: the message's cid: pictures (content id, mime, bytes).
 pub fn render(body: &Body, images: &[(String, String, Vec<u8>)]) -> Rendered {
     match &body.html {
         Some(html) => {
-            let clean = cleaner().clean(html).to_string();
-            let remote = REMOTE_SRC.find_iter(&clean).count() + REMOTE_URL.find_iter(&clean).count() + IMPORT.find_iter(&clean).count();
-            Rendered { html: inline_cids(&clean, images), remote, plain: false }
+            // the one cleaner of untrusted HTML, shared with the feeds' articles (atlas-text html.rs)
+            let clean = atlas_text::html::clean(html);
+            Rendered { html: inline_cids(&clean.html, images), remote: clean.remote, plain: false }
         }
         None => Rendered { html: text_html(&body.text, body.flowed), remote: 0, plain: true },
     }

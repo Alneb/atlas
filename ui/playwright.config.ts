@@ -146,7 +146,7 @@ export default defineConfig({
       : `cargo build -q -p atlas-papers -p atlas-ssh && cargo run -q -p atlas -- serve ${WS} --port ${PORT}`,
     cwd: "..",
     // the vault list and the secret store are the test's own, and "open a vault" starts nothing
-    env: { ...(process.env as Record<string, string>), ATLAS_VAULTS: `${WS}-vaults.toml`, ATLAS_SECRETS_DIR: `${WS}-secrets`, ATLAS_SERVER_CONFIG: `${WS}-server.toml`, ATLAS_SERVER_STATE: `${WS}-server.json`, ATLAS_AGENTS_FILE: `${WS}-agents.json`, ATLAS_APP: "true", ATLAS_LOCAL_LOCK: "1", ATLAS_LOCAL_KEY: KEY, ATLAS_SSH_BIN: FAKE_SSH, ATLAS_FAKE_SFTP_ROOT: SFTP_ROOT },
+    env: { ...(process.env as Record<string, string>), ATLAS_VAULTS: `${WS}-vaults.toml`, ATLAS_SECRETS_DIR: `${WS}-secrets`, ATLAS_SERVER_CONFIG: `${WS}-server.toml`, ATLAS_SERVER_STATE: `${WS}-server.json`, ATLAS_AGENTS_FILE: `${WS}-agents.json`, ATLAS_APP: "true", ATLAS_LOCAL_LOCK: "1", ATLAS_LOCAL_KEY: KEY, ATLAS_SSH_BIN: FAKE_SSH, ATLAS_FAKE_SFTP_ROOT: SFTP_ROOT, ATLAS_NO_PLUGIN_UPDATES: "1" },
     url: `http://127.0.0.1:${PORT}/`,
     timeout: 300_000,
     reuseExistingServer: false,

@@ -20,7 +20,7 @@ import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 import type { Player } from "./player.svelte";
 
-export const PLUGIN_API_VERSION = 36;
+export const PLUGIN_API_VERSION = 37;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -440,6 +440,9 @@ export interface PluginFetchInit {
   bodyFile?: string;
   /** a url-encoded form instead of `body`; a field may be `{ secret }`, filled in by the core (a key never in the page) */
   form?: Record<string, string | { secret: string; prefix?: string }>;
+  /** (v37) a `multipart/form-data` upload instead of `body`: the vault file `file` as the part `field` (default "file"),
+   *  under its own name, and text `fields` beside it (a field may be `{ secret }`) — a browser's file form */
+  multipart?: { file: string; field?: string; fields?: Record<string, string | { secret: string; prefix?: string }> };
 }
 export interface PluginResponse {
   status: number; ok: boolean; headers: Record<string, string>; url: string; saved?: string;

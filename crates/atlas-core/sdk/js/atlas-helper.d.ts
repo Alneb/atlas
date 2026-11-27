@@ -108,8 +108,10 @@ export interface AtlasHelper {
   /** Python's `str.title()`: each run of letters capitalised ("arrakis (imaginary place)" → "Arrakis (Imaginary Place)"). */
   text: { title(s: string): string };
   /** Native (run in the core): `select` the elements a CSS selector matches; `unescape` every character reference, all of
-   *  HTML5's names (Python's `html.unescape`). */
-  html: { select(html: string, css: string): HtmlElement[]; unescape(s: string): string };
+   *  HTML5's names (Python's `html.unescape`); `clean` (API 37) untrusted HTML made safe for a sandboxed frame — no
+   *  scripts, frames, forms, handlers or `javascript:` links, its `<style>` kept, ids prefixed — with the count of remote
+   *  things it asks for (the mail reader's one cleaner). */
+  html: { select(html: string, css: string): HtmlElement[]; unescape(s: string): string; clean(html: string): { html: string; remote: number } };
   csv: { parse(text: string, o?: { header?: false; delimiter?: string }): string[][]; parse(text: string, o: { header: true; delimiter?: string }): Record<string, string>[] };
   /** A zip file of the vault (a vault-relative path): its entries, one entry's text. */
   zip: { list(path: string): { name: string; size: number; dir: boolean }[]; read(path: string, name: string): string };

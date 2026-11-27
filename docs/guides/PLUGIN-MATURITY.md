@@ -87,8 +87,11 @@ is the manifest’s `api` (the current one is 20; an older number still loads, s
 | syncthing, downloader | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.x | end-to-end specs against a stub (1); progress for long transfers (6) |
 | catalog-books, -music, -anime, -youtube, -wikipedia, catalog-tmdb, audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
 | catalog-linkwarden | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | unit tests (1) |
+| paperless | beta | ✓ 6 / 3 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 28 | ✓ | ✓ | 0.2.0 | a try against a real Paperless (8); 1.0 (12) |
 | kiwix | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1); tried on the phone (8); 1.0 (12) |
-| freshrss, immich, jellyfin, paperless, ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
+| immich | beta | ✓ 6 / 4 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 28 | ✓ | ✓ | 0.2.0 | a try against a real Immich (8); albums; 1.0 (12) |
+| freshrss | beta | ✓ 7 / 4 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 37 | ✓ | ✓ | 0.3.0 | a try against a real FreshRSS (8); new-article notices; 1.0 (12) |
+| ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
 
 What the columns rest on:
 - **4:** finance defaults its currencies to `EUR, CAD, USD, XAU, BTC` with EUR as the base; a neutral default

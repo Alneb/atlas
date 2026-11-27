@@ -1,0 +1,61 @@
+# Paperless-ngx, the user's document archive, in Atlas (docs/design/DESIGN-server-libraries.md: documents stay there,
+# a note when one matters): the Libraries page's Documents (every document with its tags, correspondent and type,
+# opened in Atlas's PDF reader — the file kept with the local copies of remote files), a document's note on asking
+# (through the catalog, the `paperwork` kind below), `@paperless:12` in a note, the block `paperless.search`, and the
+# agent's tools to search the archive and read a document.
+title = "Paperless"
+description = "your Paperless-ngx documents: a library to search and open them, a note per document when one matters, tools for agents"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "file-text"
+version = "0.2.0"
+api = 28 # atlas.openLink (v28); registerLibrary (v24) and fetch's saveIn are feature-detected or older
+
+[permissions]
+net = ["*"]          # the server is a setting
+secrets = true
+
+[[setting]]
+key = "server"
+label = "Paperless address"
+kind = "text"
+hint = "https://paperless.example.org — the address you open Paperless at"
+
+[[setting]]
+key = "token"
+label = "API token"
+kind = "secret"
+hint = "Paperless → your profile (top right) → API auth token"
+
+[helper]
+js = "helper.js"                   # runs inside Atlas's core (QuickJS), built from helper/helper.ts
+idle = "10m"
+
+[[tool]]
+name = "search"
+description = "Search the user's Paperless-ngx document archive (scanned letters, invoices, contracts…) with Paperless's full-text search over the OCR'd text, titles, tags and correspondents. Returns the documents best first: id, title, date, correspondent, type, tags, link."
+input = { query = "string", limit = "number?" }
+secrets = ["token"]
+timeout_secs = 60
+
+[[tool]]
+name = "get"
+description = "One Paperless-ngx document by its id (from search): its fields and its whole text as Paperless's OCR read it."
+input = { id = "number" }
+secrets = ["token"]
+timeout_secs = 60
+
+# a document's note (Its note, in the library): the catalog files it, found again by its Paperless id wherever it is
+[[contributes.catalog.kinds]]
+name = "paperwork"
+label = "Document"
+type = "document"
+folder = "documents"
+note_name = "{title}"
+ids = [{ id = "paperless", property = "paperless_id" }]
+properties = ["date", "correspondent", "document_type", "tags", "paperless"]
+links = { catalog-linkwarden = false }
+library = { in = "Documents", index = false, key = ["correspondent", "date"], icon = "file-text" }
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "untested" # tried against a stand-in of its API (paperless.spec.ts), not a real Paperless yet

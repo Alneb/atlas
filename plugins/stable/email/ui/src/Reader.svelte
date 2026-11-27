@@ -4,7 +4,7 @@
   // remote-content bar, an invitation's card, the body, a forwarded message inside, the files. Below: the reply box.
   import Icon from "./Icon.svelte";
   import InviteCard from "./InviteCard.svelte";
-  import MailFrame from "./MailFrame.svelte";
+  import MailFrame from "../../../../../ui/src/components/HtmlFrame.svelte";
   import Composer from "./Composer.svelte";
   import { Finder, reveal } from "./find";
   import { askLine, askYes, display, fullDate, hue, initials, size, who, when, type Attachment, type Message } from "./api";

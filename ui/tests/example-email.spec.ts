@@ -32,7 +32,7 @@ test("the sign-in window's return address finishes the sign-in, and a refusal sa
     if (await palette.isVisible()) await page.keyboard.press("Escape");
     await page.keyboard.press("F1");
     await page.keyboard.type("Email: sign in to Outlook");
-    await expect(palette.getByText("Email: sign in to Outlook…", { exact: true }).first()).toBeVisible({ timeout: 1000 });
+    await expect(palette.getByText("Email: sign in to Outlook or Gmail…", { exact: true }).first()).toBeVisible({ timeout: 1000 });
     await page.keyboard.press("Enter");
     await expect(dialog).toContainText("Sign in as uni in the window that opened", { timeout: 5000 });
   }).toPass({ timeout: 20_000 });

@@ -28,3 +28,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # through the core
 scraper = "0.27"
 url = "2"
+
+[dev-dependencies]
+# the shipped plugins' manifests read in a test (contrib.rs)
+toml = "0.9"

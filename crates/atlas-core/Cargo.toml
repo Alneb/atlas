@@ -57,7 +57,7 @@ rav1d = { version = "1.1", default-features = false, features = ["bitdepth_8", "
 # `moxcms`: pure-Rust colour management, so a page with its own ICC profile converts to sRGB (without it: "color
 # management system is not available" — 3 of 15 real manga pages failed, on the phone where no other decoder exists)
 jxl-oxide = { version = "0.12", features = ["moxcms"] }
-reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream"] }
+reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream", "multipart"] } # multipart: a plugin's file-form upload (plugin_net.rs)
 # every client's TLS (tls_chain.rs): reqwest's rustls with a verifier that fetches an intermediate a server left out
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 webpki-roots = "1"

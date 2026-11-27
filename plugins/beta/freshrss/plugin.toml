@@ -1,0 +1,85 @@
+# FreshRSS, the user's feed reader, in Atlas: a reader pane (feeds with their unread counts, the articles, an article
+# drawn in the mail reader's own safe frame), read and starred marks kept on FreshRSS, an article kept as a note, the
+# block of unread articles, and the agent's tools. Through the Google Reader API (what FreshRSS recommends: the user and
+# an API password) or, as the fallback, the Fever API (one key). Everything goes through the helper, run in the core.
+title = "FreshRSS"
+description = "your FreshRSS feeds: a reader with read and starred marks, an article kept as a note, the unread in a block, tools for agents"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "globe"
+version = "0.3.0"
+api = 37 # the helper cleans articles with atlas.html.clean (v37)
+
+[helper]
+js = "helper.js"   # run in the core (QuickJS), built from helper/helper.ts: the same on every platform, the phone too
+idle = "10m"
+
+[[tool]]
+name = "unread"
+description = "The user's unread FreshRSS articles, newest first: id, title, url, feed, published. Read-only."
+input = { limit = "integer?" }
+
+[[tool]]
+name = "read"
+description = "One FreshRSS article (an id from freshrss_unread) with its whole text, without its HTML. Read-only."
+input = { id = "string", chars = "integer?" }
+
+[[tool]]
+name = "save"
+description = "Save one FreshRSS article (an id from freshrss_unread) as a note in the reading folder; answers its path. An existing note is not written over."
+input = { id = "string" }
+
+[permissions]
+net = ["*"]
+secrets = true
+
+[[setting]]
+key = "server"
+label = "FreshRSS address"
+kind = "text"
+hint = "https://rss.example.org — the address you open FreshRSS at"
+
+[[setting]]
+key = "protocol"
+label = "Connect with"
+kind = "choice"
+choices = ["greader", "fever"]
+default = "greader"
+hint = "greader: the Google Reader API (folders, unread counts, read and starred marks); fever: the older Fever API"
+
+[[setting]]
+key = "user"
+label = "User name"
+kind = "text"
+hint = "your FreshRSS user"
+when = { protocol = "greader" }
+
+[[setting]]
+key = "api_password"
+label = "API password"
+kind = "secret"
+hint = "FreshRSS → Settings → Profile → API password (and Administration → Authentication → Allow API access)"
+when = { protocol = "greader" }
+
+[[setting]]
+key = "api_key"
+label = "Fever API key"
+kind = "secret"
+hint = "the md5 of \"user:API password\" (FreshRSS → Settings → Profile → API password)"
+when = { protocol = "fever" }
+
+[[setting]]
+key = "folder"
+label = "Folder for kept articles"
+kind = "text"
+default = "notes/reading"
+
+[[setting]]
+key = "remote_images"
+label = "Show the articles' pictures"
+kind = "toggle"
+default = true
+hint = "pictures load from the feeds' sites; off: nothing remote loads in the reader"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "untested" # tried against a stand-in of both APIs (freshrss.spec.ts), not a real FreshRSS yet

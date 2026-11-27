@@ -235,9 +235,10 @@ test("a tab dropped on the first row lands above it, with nothing pinned", async
 // starts: WebKit (the desktop app) ends a drag whose source moved under the pointer, so no editor tab could be dragged
 // while the terminal section grew a drop strip under its last row. Chromium forgives it, hence a layout check.
 test("starting a drag moves nothing above the dragged row (a terminal section above the editor tabs)", async ({ page }) => {
+  // the files first: once the terminal has the keys, it keeps the palette's key for itself
+  for (const [q, name] of [["journal", "journal.md"], ["run.py", "run.py"]]) await openFile(page, q, name);
   await page.keyboard.press("Control+`");
   await expect(page.locator(".xterm").first()).toBeVisible();
-  for (const [q, name] of [["journal", "journal.md"], ["run.py", "run.py"]]) await openFile(page, q, name);
   await expect(side(page).locator('.group[aria-label="Terminal"] .tab')).not.toHaveCount(0);
   const target = row(page, "run.py");
   const before = (await target.boundingBox())!.y;

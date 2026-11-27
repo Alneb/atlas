@@ -15,6 +15,11 @@ pub fn call(root: &Path, id: &str, op: &str, args: &Value) -> Result<Value, Stri
     match op {
         "html.select" => html_select(s("html"), s("css")),
         "html.unescape" => Ok(json!(html_unescape(s("text")))),
+        // (API 37) untrusted HTML made safe for a sandboxed frame: the mail engine's one cleaner (atlas-text html.rs)
+        "html.clean" => {
+            let c = atlas_text::html::clean(s("html"));
+            Ok(json!({ "html": c.html, "remote": c.remote }))
+        }
         "csv.parse" => csv_parse(s("text"), args.get("header").and_then(Value::as_bool).unwrap_or(false), s("delimiter")),
         "zip.list" => zip_list(&vault_file(root, s("path"))?),
         "zip.read" => zip_read(&vault_file(root, s("path"))?, s("name")),
@@ -27,7 +32,7 @@ pub fn call(root: &Path, id: &str, op: &str, args: &Value) -> Result<Value, Stri
         "convert.typst" => convert_typst(root, args),
         "convert.unzstd" => crate::convert::unzstd(root, id, s("path")).map(Value::from),
         "cache.head" => cache_head(root, id, s("name"), args.get("bytes").and_then(Value::as_u64).unwrap_or(8)),
-        other => Err(format!("no native {other:?} (html.select, html.unescape, csv.parse, zip.list, zip.read, hash.sha256, convert.cbz, convert.pdf, convert.typst, convert.unzstd, cache.head)")),
+        other => Err(format!("no native {other:?} (html.select, html.unescape, html.clean, csv.parse, zip.list, zip.read, hash.sha256, convert.cbz, convert.pdf, convert.typst, convert.unzstd, cache.head)")),
     }
 }
 
@@ -130,6 +135,9 @@ mod tests {
         let un = |t: &str| r("html.unescape", json!({ "text": t })).unwrap();
         assert_eq!(un("Pe&ntilde;a &amp; &#39;x&#x27; &eacute;t&eacute;"), json!("Peña & 'x' été"));
         assert_eq!(un("\na <b>b</b> </textarea> &bogus; 1 < 2"), json!("\na <b>b</b> </textarea> &bogus; 1 < 2"), "only references change");
+        let c = r("html.clean", json!({ "html": "<p onclick='x()'>Hi<script>a()</script><img src='https://t.example/p.gif'></p>" })).unwrap();
+        assert_eq!(c["remote"], json!(1));
+        assert!(c["html"].as_str().unwrap().starts_with("<p>Hi<img") && !c["html"].as_str().unwrap().contains("script"), "{c}");
 
         assert_eq!(r("csv.parse", json!({ "text": "Name,Year\n\"A, film\",2001\nB,1999\n", "header": true })).unwrap(), json!([{ "Name": "A, film", "Year": "2001" }, { "Name": "B", "Year": "1999" }]));
         assert_eq!(r("csv.parse", json!({ "text": "a;b\n", "delimiter": ";" })).unwrap(), json!([["a", "b"]]));

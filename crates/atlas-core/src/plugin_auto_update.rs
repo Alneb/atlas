@@ -8,7 +8,9 @@
 //!
 //! Where it does not run: a guest folder (its plugins are its opener's), a local copy of a server vault (`mirror =`:
 //! the server updates them and sync brings the files — two writers of one folder would fight), a core told to run no
-//! background jobs (`ATLAS_NO_SCHEDULE`: a probe or a test serving a copy).
+//! background jobs (`ATLAS_NO_SCHEDULE`: a probe or a test serving a copy), the end-to-end tests' core
+//! (`ATLAS_NO_PLUGIN_UPDATES`). A plugin with no install record (copied in by hand) is never replaced either
+//! (plugin_install.rs `unchanged_install`).
 use crate::api::{Event, Notice, NoticeLevel};
 use crate::events::EventBus;
 use crate::helper::Helpers;
@@ -23,7 +25,8 @@ const EVERY: Duration = Duration::from_secs(6 * 3600);
 
 /// The loop for a served vault, or None where it must not run (see the module's comment).
 pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> Option<tokio::task::JoinHandle<()>> {
-    if std::env::var_os("ATLAS_NO_SCHEDULE").is_some() || crate::guest::is_guest(ws.root()) || crate::mirror_guard::mirror_of(ws.root()).is_some() {
+    // ATLAS_NO_PLUGIN_UPDATES: the end-to-end tests' core (playwright.config.ts) — its fixture plugins must stay theirs
+    if std::env::var_os("ATLAS_NO_SCHEDULE").is_some() || std::env::var_os("ATLAS_NO_PLUGIN_UPDATES").is_some() || crate::guest::is_guest(ws.root()) || crate::mirror_guard::mirror_of(ws.root()).is_some() {
         return None;
     }
     Some(tokio::spawn(async move {

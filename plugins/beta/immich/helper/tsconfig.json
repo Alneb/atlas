@@ -1,0 +1,4 @@
+{
+  "extends": "../../../../crates/atlas-core/sdk/js/tsconfig.helper.json",
+  "include": ["*.ts"]
+}

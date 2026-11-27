@@ -70,11 +70,48 @@ pub struct FetchRequest {
     #[serde(default)]
     #[ts(optional)]
     pub form: Option<BTreeMap<String, HeaderValue>>,
+    /// (API 37) A `multipart/form-data` upload instead of `body`: a vault file as one part, text fields (a secret filled
+    /// in here) beside it — for a service whose upload is a browser's file form (Paperless-ngx's `post_document`).
+    #[serde(default)]
+    #[ts(optional)]
+    pub multipart: Option<Multipart>,
     /// One try among several (a paper's copies, best first): a sign-in met is answered in `signin` but not offered
     /// to the user — the plugin asks again without `quiet` if no other try worked.
     #[serde(default)]
     #[ts(optional)]
     pub quiet: Option<bool>,
+}
+
+/// A `multipart/form-data` body: the file `file` (a vault path) sent as the part `field`, under its own name, and the
+/// text parts `fields` (each text or a secret of the plugin, filled in by the core).
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct Multipart {
+    pub file: String,
+    #[serde(default = "file_field")]
+    #[ts(as = "Option<String>", optional)]
+    pub field: String,
+    #[serde(default)]
+    #[ts(as = "Option<BTreeMap<String, HeaderValue>>", optional)]
+    pub fields: BTreeMap<String, HeaderValue>,
+}
+
+fn file_field() -> String {
+    "file".into()
+}
+
+/// A part's content type from its file name: what a browser's file form would say for the kinds uploaded to services;
+/// anything else is bytes, for the service to sniff.
+fn mime_of(name: &str) -> &'static str {
+    match name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).as_deref() {
+        Some("pdf") => "application/pdf",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("tif" | "tiff") => "image/tiff",
+        Some("webp") => "image/webp",
+        Some("txt" | "md") => "text/plain",
+        _ => "application/octet-stream",
+    }
 }
 
 /// The folders a plugin's `save_to` may write into.
@@ -225,7 +262,8 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     // a secret in a header of the plugin's naming or in the form is not one reqwest drops on a redirect to another host
     // (it drops only Authorization and Cookie): then a redirect may not leave the host asked
     let kept = kept_headers(&perm, secrets, &url, &req.headers)?;
-    let carries_secret = kept.secret || req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
+    let carries_secret = kept.secret
+        || req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).chain(req.multipart.iter().flat_map(|m| m.fields.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
     let first_host = url.host_str().unwrap_or_default().to_ascii_lowercase();
     let client = reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
         .timeout(Duration::from_secs(req.timeout_secs.unwrap_or(DEFAULT_TIMEOUT).clamp(1, MAX_TIMEOUT)))
@@ -263,7 +301,24 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     for (name, v) in &req.headers {
         call = call.header(name.as_str(), value(v)?);
     }
-    if let Some(file) = &req.body_file {
+    // one body at most: two would leave the plugin unsure which one was sent
+    let bodies = [req.body.is_some(), req.body_file.is_some(), req.form.is_some(), req.multipart.is_some()].iter().filter(|b| **b).count();
+    if bodies > 1 {
+        return Err(Error::BadRequest("fetch: give one of body, body_file, form and multipart".into()));
+    }
+    if let Some(m) = &req.multipart {
+        let path = crate::paths::safe_join(root, &m.file)?;
+        if std::fs::metadata(&path)?.len() > MAX_FILE {
+            return Err(Error::TooLarge(format!("fetch: multipart file more than {} MB", MAX_FILE / 1024 / 1024)));
+        }
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
+        let part = reqwest::blocking::multipart::Part::bytes(std::fs::read(&path)?).file_name(name.clone()).mime_str(mime_of(&name)).map_err(|e| Error::BadRequest(format!("fetch: {e}")))?;
+        let mut form = reqwest::blocking::multipart::Form::new();
+        for (k, v) in &m.fields {
+            form = form.text(k.clone(), value(v)?);
+        }
+        call = call.multipart(form.part(m.field.clone(), part)); // its boundary and content type set by reqwest
+    } else if let Some(file) = &req.body_file {
         let path = crate::paths::safe_join(root, file)?;
         if std::fs::metadata(&path)?.len() > MAX_FILE {
             return Err(Error::TooLarge(format!("fetch: body_file more than {} MB", MAX_FILE / 1024 / 1024)));
@@ -375,6 +430,7 @@ mod tests {
             save_to: save_to.map(Into::into),
             save_in: None,
             body_file: None,
+            multipart: None,
             form: None,
         };
 
@@ -428,6 +484,23 @@ mod tests {
         let sent = server.join().unwrap();
         assert!(sent.to_ascii_lowercase().contains("content-type: application/x-www-form-urlencoded"), "{sent}");
         assert!(sent.ends_with("api_key=tok-123&q=a+b%26c"), "{sent}");
+
+        // a file form (Paperless's upload): the vault file as a part under its name, a secret field filled in here
+        std::fs::write(vault.path().join("scan.pdf"), b"%PDF-1.4 x").unwrap();
+        let (port, server) = serve_once("HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\n\"uuid\"");
+        let fields = BTreeMap::from([("title".to_string(), HeaderValue::Text("Power bill".into())), ("key".to_string(), HeaderValue::Secret { secret: "token".into(), prefix: String::new() })]);
+        let m = Multipart { file: "scan.pdf".into(), field: "document".into(), fields };
+        let up = FetchRequest { method: Some("POST".into()), headers: BTreeMap::new(), multipart: Some(m), ..req(format!("http://127.0.0.1:{port}/api/documents/post_document/"), None) };
+        assert_eq!(fetch(vault.path(), &secrets, "net", &up).unwrap().status, 200);
+        let sent = server.join().unwrap();
+        assert!(sent.to_ascii_lowercase().contains("content-type: multipart/form-data; boundary="), "{sent}");
+        assert!(sent.contains("name=\"document\"; filename=\"scan.pdf\"") && sent.contains("Content-Type: application/pdf") && sent.contains("%PDF-1.4 x"), "{sent}");
+        assert!(sent.contains("name=\"title\"\r\n\r\nPower bill") && sent.contains("name=\"key\"\r\n\r\ntok-123"), "{sent}");
+        // one body only; a file outside the vault refused
+        let both = FetchRequest { body: Some("x".into()), multipart: Some(Multipart { file: "scan.pdf".into(), field: "f".into(), fields: BTreeMap::new() }), ..req("http://127.0.0.1:9/x".into(), None) };
+        assert!(fetch(vault.path(), &secrets, "net", &both).is_err());
+        let out = FetchRequest { multipart: Some(Multipart { file: "../outside".into(), field: "f".into(), fields: BTreeMap::new() }), ..req("http://127.0.0.1:9/x".into(), None) };
+        assert!(fetch(vault.path(), &secrets, "net", &out).is_err());
     }
 
     #[test]
@@ -445,6 +518,7 @@ mod tests {
             save_to: None,
             save_in: None,
             body_file: None,
+            multipart: None,
             form: None,
         };
         let token = |port: u16| Some(crate::service_signin::Needed::Token { host: "127.0.0.1".into(), name: "svc".into(), page: format!("http://127.0.0.1:{port}/api/items") });
@@ -487,6 +561,7 @@ mod tests {
             save_to: Some("never.json".into()),
             save_in: None,
             body_file: None,
+            multipart: None,
             form: None,
         };
 
