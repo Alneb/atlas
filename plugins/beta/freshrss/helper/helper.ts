@@ -7,9 +7,9 @@
 // `node scripts/dev/plugin-ui.mjs plugins/beta/freshrss`.
 import type { Params } from "atlas-helper";
 // @ts-ignore — plain JavaScript shared with the page
-import { ALL, STARRED, changeOf, editTagBody, feedsOf, feverArticle, feverFeeds, feverMark, fileName, forAgent, loginToken, streamOf, streamPath } from "../fr.js";
+import { ALL, STARRED, changeOf, editTagBody, feedsOf, feverArticle, feverFeeds, feverMark, fileName, forAgent, loginToken, newSince, noticeOf, streamOf, streamPath } from "../fr.js";
 
-type Article = { id: string; title: string; url: string | null; feed: string; feedId: string; author: string; published: number; html: string; read: boolean; starred: boolean };
+type Article = { id: string; title: string; url: string | null; feed: string; feedId: string; author: string; published: number; crawled: number; html: string; read: boolean; starred: boolean };
 type Settings = Record<string, unknown>;
 
 const baseOf = (s: Settings | undefined) => {
@@ -169,4 +169,33 @@ async function save(p: Params) {
   return { path, made: true };
 }
 
-atlas.methods({ feeds, articles, mark, unread, read, save });
+// ---------------------------------------------------------------------------------------------- the round
+
+/** What the last round saw, kept between rounds (the helper stops when idle): its time and the ids it told. */
+const STATE = `.atlas/cache/${atlas.id}.json`;
+type State = { since?: number; told?: string[] };
+const loadState = async (): Promise<State> => { try { return JSON.parse(await atlas.read(STATE)); } catch { return {}; } };
+
+/** The scheduled round (`check`, every 30 minutes): one notice of the unread articles that came since the last round,
+ *  when Settings asks for notices. The first round only notes the time: what was unread before is not news. */
+async function check(p: Params) {
+  const s = p.settings;
+  if (!s?.notify) return { skipped: "notices of new articles are off (Settings → Plugins → FreshRSS)" };
+  if (!String(s?.server ?? "").trim()) return { skipped: "no FreshRSS address in Settings" };
+  const now = Date.now();
+  const state = await loadState();
+  let page: { articles: Article[] };
+  try {
+    page = await articles({ ...p, stream: ALL, unread: true });
+  } catch (e) {
+    // a server away or a login refused is not this round's failure: said in the log, tried again next round
+    return { skipped: `FreshRSS not reached: ${(e as Error)?.message ?? e}` };
+  }
+  const fresh = state.since ? newSince(page.articles, state.since, state.told) : [];
+  await atlas.write(STATE, JSON.stringify({ since: now, told: fresh.map((a: Article) => a.id).slice(0, 200) }));
+  const notice = noticeOf(fresh);
+  if (!state.since) return { summary: "first round: new articles are told from now on" };
+  return notice ? { summary: notice.title, notices: [{ ...notice, open: baseOf(s) }] } : { summary: "nothing new" };
+}
+
+atlas.methods({ feeds, articles, mark, unread, read, save, check });

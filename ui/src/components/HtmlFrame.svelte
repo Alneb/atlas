@@ -24,6 +24,8 @@
       bg: v("--bg", "#ffffff", "#1b1d22"), text: v("--text", "#1d1d1f", "#dcdfe5"), muted: v("--text-muted", "#555b66", "#aab0bb"),
       faint: v("--text-faint", "#7a808a", "#8a919d"), link: v("--link", "#2557d6", "#8aa4ff"),
       border: v("--border", "#d6d9de", "#3a3f4a"), borderStrong: v("--border-strong", "#c3c7cf", "#4a5060"), chip: v("--bg-alt", "#eceef1", "#2a2e36"),
+      // find in the frame: the editor's find colours (editor.css .cm-searchMatch), from the same tokens
+      yellow: v("--yellow", "#c9a100", "#e5c07b"), orange: v("--orange", "#d9822b", "#e09a5a"),
     };
   }
   let theme = $state(appColours());
@@ -142,8 +144,8 @@ details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none
 details.atlas-quoted>summary::-webkit-details-marker{display:none}
 details.atlas-quoted[open]>summary{margin-bottom:8px}
 table{max-width:100%}
-mark.atlas-find{background:${t.dark ? "#7a5d00" : "#ffe27a"};color:inherit;border-radius:2px}
-mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark ? "#fff" : "#000"}}
+mark.atlas-find{background:color-mix(in srgb,${t.yellow} 28%,transparent);color:inherit;border-radius:2px}
+mark.atlas-find.cur{background:color-mix(in srgb,${t.orange} 45%,transparent)}
 </style></head><body>${html}</body></html>`;
   });
 

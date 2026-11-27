@@ -2,14 +2,14 @@
 // opened in Atlas's image viewer, its file kept with the local copies of remote files), the command to search them by
 // what is in them (Immich's smart search), Send to Immich for a vault picture, and the block `immich.recent`. The
 // client is client.js; the logic without a page is im.js (im.test.mjs); the agent's tool is the helper's.
-import { sendable, subOf } from "./im.js";
+import { groupOrderOf, sendable, subOf, withAlbums } from "./im.js";
 import { canSend, el, immich, openAsset, sendFile } from "./client.js";
 
 export function register(atlas) {
   const itemOf = (im, r) => ({
     id: r.id, title: r.file, sub: subOf(r),
     cover: () => im.thumb(r.id).catch(() => null),
-    groups: r.month ? [r.month] : [], tags: [...r.people, ...(r.video ? ["video"] : []), ...(r.favorite ? ["favourite"] : [])],
+    groups: [...(r.albums ?? []), ...(r.month ? [r.month] : [])], tags: [...r.people, ...(r.video ? ["video"] : []), ...(r.favorite ? ["favourite"] : [])],
     flags: r.video ? [{ label: "video" }] : [],
     text: [r.file, r.place, r.people.join(" "), r.description, r.camera].join(" "),
     sort: { taken: r.taken, file: r.file }, row: r,
@@ -47,13 +47,21 @@ export function register(atlas) {
     return sendFile(atlas, path);
   } });
 
+  // the side: the albums, then the months newest first. Known only after a load, so one array filled in place: the host
+  // copies the source's fields when it first shows it, and a copied array is still this one.
+  const order = [];
   atlas.registerLibrary?.({
     id: "immich", title: "Photos", icon: "image", noun: "photos",
     async load() {
       const im = immich(atlas);
-      return im.on ? (await im.recent()).map((r) => itemOf(im, r)) : [];
+      if (!im.on) return [];
+      const [recent, albums] = await Promise.all([im.recent(), im.albums().catch(() => ({ albums: [], assetsById: new Map() }))]);
+      const rows = withAlbums(recent, albums.albums, albums.assetsById);
+      order.splice(0, order.length, ...groupOrderOf(rows));
+      return rows.map((r) => itemOf(im, r));
     },
-    groupsTitle: "Months", layouts: ["covers", "list"],
+    groupOrder: order,
+    groupsTitle: "Albums and months", layouts: ["covers", "list"],
     sorts: [{ id: "taken", label: "taken", desc: true }, { id: "file", label: "file name" }],
     search: "Search the photos (file, place, people)…",
     empty: "No photos yet: your Immich address and API key in Settings → Plugins → Immich.",

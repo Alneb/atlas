@@ -24,6 +24,8 @@ const ITEMS = [
   { id: "a1", type: "IMAGE", originalFileName: "beach.jpg", localDateTime: "2026-03-14T16:20:00.000Z", exifInfo: { city: "Lisbon", country: "Portugal" }, people: [{ id: "p1", name: "Ana" }] },
   { id: "a2", type: "IMAGE", originalFileName: "lab.jpg", localDateTime: "2026-02-02T09:00:00.000Z", exifInfo: {}, people: [] },
 ];
+// an album with one of the newest photos and an older one the listing does not reach
+const OLD = { id: "a3", type: "IMAGE", originalFileName: "summer.jpg", localDateTime: "2019-07-01T10:00:00.000Z", exifInfo: {}, people: [] };
 
 test.beforeAll(async ({ request }) => {
   server = createServer((req, res) => {
@@ -31,6 +33,8 @@ test.beforeAll(async ({ request }) => {
     asked.push(`${req.method} ${req.url}`);
     const json = (v: unknown) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(v)); };
     if (req.method === "POST" && req.url === "/api/search/metadata") return json({ assets: { items: ITEMS, nextPage: null } });
+    if (req.method === "GET" && req.url === "/api/albums") return json([{ id: "al1", albumName: "Holidays", assetCount: 2 }]);
+    if (req.method === "GET" && req.url === "/api/albums/al1") return json({ id: "al1", albumName: "Holidays", assets: [ITEMS[0], OLD] });
     if (req.method === "POST" && req.url === "/api/search/smart") return json({ assets: { items: [ITEMS[0]], nextPage: null } });
     if (req.method === "POST" && req.url === "/api/assets") {
       const chunks: Buffer[] = [];
@@ -63,13 +67,14 @@ test("an Immich block shows the latest photos, fetched by the core into the plug
 });
 
 
-test("the Photos library lists the newest photos by month; Open keeps one and opens it", async ({ page }) => {
+test("the Photos library lists the newest photos by album and month; Open keeps one and opens it", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await runCommand(page, "Immich: photos", "Immich: photos");
   const lib = page.locator('.library[data-source="immich"]');
-  await expect(lib.locator(".card")).toHaveCount(2, { timeout: 15_000 });
-  await expect(lib.locator(".side")).toContainText("2026 March");
+  // the two newest and the album's older one, the album first at the side, then the months newest first
+  await expect(lib.locator(".card")).toHaveCount(3, { timeout: 15_000 });
+  await expect(lib.locator(".side")).toContainText(/Holidays[\s\S]*2026 March[\s\S]*2026 February[\s\S]*2019 July/);
   await lib.locator(".card", { hasText: "beach.jpg" }).click();
   const detail = lib.locator(".detail");
   await expect(detail).toContainText("2026-03-14 · Lisbon, Portugal · Ana");

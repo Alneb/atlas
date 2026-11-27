@@ -5,8 +5,9 @@ one by what is in it, opens it in its image viewer, and sends a picture of the v
 
 ## What it adds
 
-- **Photos**, a tab of the Libraries page (the command "Immich: photos"): the newest 2 000 photos and videos, by month
-  (the side list), the people Immich recognised as filters, each with its thumbnail and when, where and who under its
+- **Photos**, a tab of the Libraries page (the command "Immich: photos"): the newest 2 000 photos and videos, by album and
+  month (the side list: the albums first — the 40 biggest, each with all its photos, older ones too — then the months,
+  newest first), the people Immich recognised as filters, each with its thumbnail and when, where and who under its
   name. The search box searches file names, places, people and descriptions; older photos come through the smart search.
   - **Open** keeps the photo with the local copies of remote files (`.atlas/remote/immich/photos/<id>/<file>`) and
     opens it in the image viewer — the original, or Immich's JPEG preview for a HEIC or raw file a page cannot draw.

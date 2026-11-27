@@ -2,6 +2,7 @@
 import { tabFacts } from "./tab-facts";
 import { keyText } from "./keys";
 import { onWide } from "./phone.svelte";
+import { wheelXY } from "./wheel";
 import {
   createDockview,
   type DockviewApi,
@@ -226,7 +227,7 @@ export function initDock(el: HTMLElement, components: PaneComponents): DockviewA
   el.addEventListener("wheel", (e) => {
     const strip = (e.target as HTMLElement).closest?.(".dv-tabs-container");
     if (!strip || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || strip.scrollWidth <= strip.clientWidth) return;
-    strip.scrollLeft += e.deltaY;
+    strip.scrollLeft += wheelXY(e).y;
     e.preventDefault();
   }, { passive: false });
   dock.onDidActivePanelChange(reportPanes);

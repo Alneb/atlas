@@ -2118,7 +2118,9 @@ function ai(e, t) {
 			link: r("--link", "#2557d6", "#8aa4ff"),
 			border: r("--border", "#d6d9de", "#3a3f4a"),
 			borderStrong: r("--border-strong", "#c3c7cf", "#4a5060"),
-			chip: r("--bg-alt", "#eceef1", "#2a2e36")
+			chip: r("--bg-alt", "#eceef1", "#2a2e36"),
+			yellow: r("--yellow", "#c9a100", "#e5c07b"),
+			orange: r("--orange", "#d9822b", "#e09a5a")
 		};
 	}
 	let c = /* @__PURE__ */ M(Ut(s()));
@@ -2222,8 +2224,8 @@ details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none
 details.atlas-quoted>summary::-webkit-details-marker{display:none}
 details.atlas-quoted[open]>summary{margin-bottom:8px}
 table{max-width:100%}
-mark.atlas-find{background:${o.dark ? "#7a5d00" : "#ffe27a"};color:inherit;border-radius:2px}
-mark.atlas-find.cur{background:${o.dark ? "#c77700" : "#ff9f1a"};color:${o.dark ? "#fff" : "#000"}}
+mark.atlas-find{background:color-mix(in srgb,${o.yellow} 28%,transparent);color:inherit;border-radius:2px}
+mark.atlas-find.cur{background:color-mix(in srgb,${o.orange} 45%,transparent)}
 </style></head><body>${t.html}</body></html>`;
 	});
 	function b() {

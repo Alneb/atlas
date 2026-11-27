@@ -360,7 +360,7 @@ pub fn find(pdf: &Path, n: u32, query: &str) -> Result<Vec<Vec<Box4>>, String> {
 pub fn links(pdf: &Path, n: u32) -> Result<Vec<(Box4, Target)>, String> {
     with_doc(pdf, |api, doc| {
         with_page(api, doc, n, |page| {
-            let mut out = vec![];
+            let (mut out, mut unresolved) = (vec![], vec![]);
             let (mut pos, mut link): (c_int, Link) = (0, std::ptr::null_mut());
             // SAFETY: PDFium's own enumeration; every handle read is the page's, alive while it is loaded
             unsafe {
@@ -388,16 +388,27 @@ pub fn links(pdf: &Path, n: u32) -> Result<Vec<(Box4, Target)>, String> {
                             _ => continue,
                         }
                     }
-                    if !dest.is_null() {
-                        let i = (api.FPDFDest_GetDestPageIndex)(doc, dest);
-                        if i >= 0 {
-                            out.push((bx, Target::Page(i as u32 + 1)));
-                        }
+                    let i = if dest.is_null() { -1 } else { (api.FPDFDest_GetDestPageIndex)(doc, dest) };
+                    if i >= 0 {
+                        out.push((bx, Target::Page(i as u32 + 1)));
+                    } else {
+                        unresolved.push(bx);
                     }
                 }
             }
-            out
+            (out, unresolved)
         })
+    })
+    .map(|(mut out, unresolved)| {
+        // a link PDFium found no destination for: a named one in a name tree it misreads (pdf_names.rs)
+        if !unresolved.is_empty() {
+            for (bx, page) in crate::pdf_names::named_links(pdf, n) {
+                if unresolved.iter().any(|u| crate::pdf_names::same_box(u, &bx)) {
+                    out.push((bx, Target::Page(page)));
+                }
+            }
+        }
+        out
     })
 }
 

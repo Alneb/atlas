@@ -33,6 +33,46 @@ export function rowOf(a) {
   };
 }
 
+/** How many albums the library reads the photos of (one request each): the rest are listed by Immich's own pages. */
+export const MAX_ALBUMS = 40;
+
+/** `GET /api/albums` → the albums, biggest first, those with something in them: { id, name, count }. */
+export function albumsOf(answer) {
+  return (Array.isArray(answer) ? answer : [])
+    .map((a) => ({ id: String(a.id), name: String(a.albumName ?? "").trim() || "(untitled album)", count: Number(a.assetCount) || 0 }))
+    .filter((a) => a.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+/** An album's photos: `GET /api/albums/<id>`'s `assets` (null when this Immich no longer lists them there, and the
+ *  client asks the search for `albumIds` instead). */
+export const albumAssetsOf = (answer) => (Array.isArray(answer?.assets) ? answer.assets : null);
+
+/** The search for one album's photos, for an Immich whose album answer has no assets. */
+export const albumBody = (id, page = 1) => ({ albumIds: [id], page, size: PAGE, order: "desc", withExif: true, withPeople: true });
+
+/** The rows of the listing and of the albums as one list: each photo once, with the names of the albums it is in (`albums`),
+ *  the albums' older photos added to the newest ones (`assetsById`: an album's id → its assets). */
+export function withAlbums(rows, albums, assetsById) {
+  const byId = new Map(rows.map((r) => [r.id, { ...r, albums: [] }]));
+  for (const al of albums) {
+    for (const a of assetsById.get(al.id) ?? []) {
+      const id = String(a.id);
+      if (!byId.has(id)) byId.set(id, { ...rowOf(a), albums: [] });
+      const r = byId.get(id);
+      if (!r.albums.includes(al.name)) r.albums.push(al.name);
+    }
+  }
+  return [...byId.values()];
+}
+
+/** The side's order: the albums first (by name), then the months, newest first (a month's name does not sort by itself). */
+export function groupOrderOf(rows) {
+  const albums = [...new Set(rows.flatMap((r) => r.albums ?? []))].sort((a, b) => a.localeCompare(b));
+  const months = [...new Map(rows.filter((r) => r.month).map((r) => [r.monthKey, r.month]))].sort((a, b) => b[0].localeCompare(a[0])).map(([, m]) => m);
+  return [...albums, ...months];
+}
+
 /** The items of a search's answer, and whether there is a next page. */
 export const itemsOf = (answer) => ({ items: answer?.assets?.items ?? [], more: answer?.assets?.nextPage != null });
 

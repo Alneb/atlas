@@ -11,10 +11,10 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   correspondent, type, tags and thumbnail; Open keeps its PDF and opens it in the PDF reader; Its note makes the
   document's note through the catalog (`documents/<title>.md`, found again by its Paperless id); agents get
   `paperless_search` and `paperless_get`; Send to Paperless (file and tab menus) uploads a vault file.
-- Immich as a library (Immich 0.2.0, now beta): the Libraries page's Photos by month and people, a photo opened in
+- Immich as a library (Immich 0.3.0, now beta): the Libraries page's Photos by album, month and people, a photo opened in
   Atlas's image viewer, a search by what is in the photos (listed as you type), Send to Immich, and `immich_search` for
   agents.
-- FreshRSS as a reader (FreshRSS 0.3.0, now beta): your feeds by folder with unread counts, the articles, an article
+- FreshRSS as a reader (FreshRSS 0.4.0, now beta; a notice of new articles every 30 minutes when asked in Settings): your feeds by folder with unread counts, the articles, an article
   drawn safely in the app's colours; read and starred marks kept on FreshRSS (Google Reader API, Fever as the fallback);
   Keep makes a note of an article; `freshrss_read` gives agents an article's text.
 - JavaScript helpers can clean untrusted HTML (plugin API 37: `atlas.html.clean`), with the mail reader's own cleaner,
@@ -42,6 +42,13 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Fixed
 
+- In a PDF, links to references and equations that led nowhere now jump: PDFium misses a named destination when the
+  document's name tree has both names and branches at one level (some LaTeX theses), and the core now finds those
+  itself.
+- The image viewer: the wheel no longer pushes a picture out of the frame (a side smaller than the frame stays
+  centred, a bigger one stops at its edges), a mouse wheel that counts in lines moves it a real step instead of 3 px,
+  and a long screenshot opens at its width from its top, so the wheel scrolls down it like a page. The tab strip's
+  sideways scroll had the same 3 px step and is fixed too.
 - The command bar no longer flickers when it opens: it shows at once, with no opening animation, and its commands are
   not redrawn when the keys reloaded on opening have not changed.
 - Editor tabs in the tab list can be dragged again in the desktop app: as a drag started, the terminal section above

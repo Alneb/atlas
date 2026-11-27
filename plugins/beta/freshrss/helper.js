@@ -32,6 +32,7 @@
 			feedId: String(it.origin?.streamId ?? ""),
 			author: String(it.author ?? ""),
 			published: Number(it.published) ? Number(it.published) * 1e3 : Number(it.crawlTimeMsec) || 0,
+			crawled: Number(it.crawlTimeMsec) || 0,
 			html: String(it.content?.content ?? it.summary?.content ?? ""),
 			read: has(READ),
 			starred: has(STARRED)
@@ -86,6 +87,7 @@
 			feedId: it.feed_id != null ? `feed/${it.feed_id}` : "",
 			author: String(it.author ?? ""),
 			published: (Number(it.created_on_time) || 0) * 1e3,
+			crawled: 0,
 			html: String(it.html ?? ""),
 			read: !!Number(it.is_read),
 			starred: !!Number(it.is_saved)
@@ -128,6 +130,25 @@
 			read: a.read,
 			starred: a.starred,
 			...text ? { text: chars ? text.slice(0, chars) : text } : {}
+		};
+	}
+	/** The unread articles a round has not told yet: newer than the last round (`since`, ms; by FreshRSS's crawl time
+	*  where it gives one, else the publication time) and not among the ids it told (`told`), newest first. */
+	function newSince(articles, since, told = []) {
+		const seen = new Set(told);
+		return articles.filter((a) => !a.read && (a.crawled || a.published) > since && !seen.has(a.id)).sort((a, b) => (b.crawled || b.published) - (a.crawled || a.published));
+	}
+	/** The one notice of a round: how many, from which feeds, the newest titles; opening it opens the reader. Replaces
+	*  the last round's (one id), so a day of rounds is one notice, not a pile. */
+	function noticeOf(fresh, shown = 3) {
+		if (!fresh.length) return null;
+		const feeds = [...new Set(fresh.map((a) => a.feed).filter(Boolean))];
+		const titles = fresh.slice(0, shown).map((a) => `• ${a.title}${a.feed ? ` (${a.feed})` : ""}`);
+		const rest = fresh.length > shown ? [`and ${fresh.length - shown} more`] : [];
+		return {
+			id: "freshrss-new",
+			title: `${fresh.length} new article${fresh.length === 1 ? "" : "s"} in FreshRSS${feeds.length === 1 ? `: ${feeds[0]}` : ""}`,
+			body: [...titles, ...rest].join("\n")
 		};
 	}
 	/** A note's file name from an article's title (what Obsidian and every OS accept). */
@@ -327,12 +348,55 @@
 			made: true
 		};
 	}
+	/** What the last round saw, kept between rounds (the helper stops when idle): its time and the ids it told. */
+	const STATE = `.atlas/cache/${atlas.id}.json`;
+	const loadState = async () => {
+		try {
+			return JSON.parse(await atlas.read(STATE));
+		} catch {
+			return {};
+		}
+	};
+	/** The scheduled round (`check`, every 30 minutes): one notice of the unread articles that came since the last round,
+	*  when Settings asks for notices. The first round only notes the time: what was unread before is not news. */
+	async function check(p) {
+		const s = p.settings;
+		if (!s?.notify) return { skipped: "notices of new articles are off (Settings → Plugins → FreshRSS)" };
+		if (!String(s?.server ?? "").trim()) return { skipped: "no FreshRSS address in Settings" };
+		const now = Date.now();
+		const state = await loadState();
+		let page;
+		try {
+			page = await articles({
+				...p,
+				stream: ALL,
+				unread: true
+			});
+		} catch (e) {
+			return { skipped: `FreshRSS not reached: ${e?.message ?? e}` };
+		}
+		const fresh = state.since ? newSince(page.articles, state.since, state.told) : [];
+		await atlas.write(STATE, JSON.stringify({
+			since: now,
+			told: fresh.map((a) => a.id).slice(0, 200)
+		}));
+		const notice = noticeOf(fresh);
+		if (!state.since) return { summary: "first round: new articles are told from now on" };
+		return notice ? {
+			summary: notice.title,
+			notices: [{
+				...notice,
+				open: baseOf(s)
+			}]
+		} : { summary: "nothing new" };
+	}
 	atlas.methods({
 		feeds,
 		articles,
 		mark,
 		unread,
 		read,
-		save
+		save,
+		check
 	});
 })();

@@ -1,7 +1,7 @@
 // Immich's client for the page side (main.js): the newest photos and videos, a smart search, thumbnails kept in the
 // plugin's cache, a photo kept with the local copies of remote files and opened in Atlas's image viewer, a vault
 // picture sent to Immich. The shapes are im.js's; the key goes in as `x-api-key`, put in by the core (never the page).
-import { MAX_PAGES, MULTIPART_API, itemsOf, listBody, rowOf, smartBody, uploadRequest, viewOf, webUrl } from "./im.js";
+import { MAX_ALBUMS, MAX_PAGES, MULTIPART_API, albumAssetsOf, albumBody, albumsOf, itemsOf, listBody, rowOf, smartBody, uploadRequest, viewOf, webUrl } from "./im.js";
 
 export const el = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text !== undefined) e.textContent = text; return e; };
 
@@ -27,6 +27,28 @@ export function immich(atlas) {
         if (!more) break;
       }
       return out;
+    },
+    /** The albums (the biggest MAX_ALBUMS) and each one's photos: { albums, assetsById }. An album's photos come with
+     *  the album where Immich lists them there, else from the search by album. A failing album is left out, never the
+     *  library. */
+    async albums() {
+      const albums = albumsOf(await call("/api/albums")).slice(0, MAX_ALBUMS);
+      const assetsById = new Map();
+      await Promise.all(albums.map(async (al) => {
+        try {
+          let assets = albumAssetsOf(await call(`/api/albums/${encodeURIComponent(al.id)}`));
+          if (!assets) {
+            assets = [];
+            for (let page = 1; page <= MAX_PAGES; page++) {
+              const { items, more } = itemsOf(await call("/api/search/metadata", { method: "POST", body: albumBody(al.id, page) }));
+              assets.push(...items);
+              if (!more) break;
+            }
+          }
+          assetsById.set(al.id, assets);
+        } catch { /* this album left out: the others and the timeline still show */ }
+      }));
+      return { albums, assetsById };
     },
     /** Immich's smart search (what is in the picture, in words). */
     smart: async (query, size) => itemsOf(await call("/api/search/smart", { method: "POST", body: smartBody(query, size) })).items.map(rowOf),

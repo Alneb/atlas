@@ -6,7 +6,7 @@ title = "FreshRSS"
 description = "your FreshRSS feeds: a reader with read and starred marks, an article kept as a note, the unread in a block, tools for agents"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "globe"
-version = "0.3.0"
+version = "0.4.0"
 api = 37 # the helper cleans articles with atlas.html.clean (v37)
 
 [helper]
@@ -27,6 +27,12 @@ input = { id = "string", chars = "integer?" }
 name = "save"
 description = "Save one FreshRSS article (an id from freshrss_unread) as a note in the reading folder; answers its path. An existing note is not written over."
 input = { id = "string" }
+
+[[tool]]
+name = "check"
+description = "Tell the user of FreshRSS articles that came since the last check (one notice), when they asked for notices in Settings. Run by itself every 30 minutes."
+input = {}
+schedule = "every 30m"
 
 [permissions]
 net = ["*"]
@@ -72,6 +78,13 @@ key = "folder"
 label = "Folder for kept articles"
 kind = "text"
 default = "notes/reading"
+
+[[setting]]
+key = "notify"
+label = "Tell me of new articles"
+kind = "toggle"
+default = false
+hint = "every 30 minutes, one notice of the unread articles that came since the last look (opening it opens FreshRSS)"
 
 [[setting]]
 key = "remote_images"

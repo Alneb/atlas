@@ -343,7 +343,8 @@ test("Link: a conversation linked to any note is kept in its own note's links, l
   await expect.poll(async () => {
     const r = await request.get("/api/files", { headers: H });
     const files = (await r.json()) as string[];
-    const note = files.find((f) => f.startsWith("mail/") && f.includes(subject));
+    // the note, not an attachment kept beside it (its folder shares the subject)
+    const note = files.find((f) => f.startsWith("mail/") && f.endsWith(".md") && f.includes(subject));
     return note ? (await read(request, note)) ?? "" : "";
   }, { timeout: 20_000 }).toContain("[[notes/Link target]]");
   expect(await read(request, "notes/Link target.md")).toBe("# Link target\n\nMy own text.\n");

@@ -87,9 +87,9 @@ test("dark pages toggle (D) and stay on for the next PDF", async ({ page }) => {
 });
 
 // PDFium misses a named destination that sits under a name tree whose root has both /Names and /Kids, as this thesis's
-// does (1 of 74 papers): its links resolve nowhere. Internal links are checked on a generated PDF in pdf-reader.spec.ts;
-// docs/refactor/REFACTOR-pdfium-reader.md "drawbacks".
-test.fixme("internal links (references, equations) jump inside the paper", async ({ page }) => {
+// does (1 of 74 papers); the core finds those itself (pdf_names.rs, unit-tested on such a tree). Internal links are
+// also checked on a generated PDF in pdf-reader.spec.ts.
+test("internal links (references, equations) jump inside the paper", async ({ page }) => {
   const pane = await openPdf(page, LINKED_PDF);
   // page 20 of the thesis carries 20 link annotations (mutool show … pages/20/Annots)
   await pane.locator(".page-in").fill("20"); await pane.locator(".page-in").press("Enter");

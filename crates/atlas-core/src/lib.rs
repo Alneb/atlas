@@ -49,6 +49,7 @@ pub mod page;
 pub mod paths;
 pub mod pdf_export;
 pub mod pdf_marks;
+pub mod pdf_names;
 pub mod pdf_columns;
 pub mod pdf_text;
 pub mod pdfium;

@@ -1,10 +1,12 @@
 <script lang="ts">
-  // Image viewer: fetched through the API (header-guarded) as a blob URL. Fit by default; Ctrl+wheel (a touchpad pinch
-  // arrives as one: atlas-app pinch_to_wheel) zooms around the pointer, the wheel or a drag pans, a double-click goes
-  // fit ⇄ 100 %.
+  // Image viewer: fetched through the API (header-guarded) as a blob URL. Fit by default — a picture much taller than
+  // the frame (a long screenshot, a scanned page strip) fits its width instead, from its top, and the wheel scrolls
+  // down it like a page; Ctrl+wheel (a touchpad pinch arrives as one: atlas-app pinch_to_wheel) zooms around the
+  // pointer, the wheel or a drag pans, a double-click goes fit ⇄ 100 %. A pan never takes the picture out of the frame:
+  // a side smaller than the frame stays centred, a bigger one keeps its edges at the frame's (`clamped`).
   import { onMount } from "svelte";
   import { blobUrl } from "../lib/raw";
-  import { wheelPixels } from "../lib/wheel";
+  import { wheelPixels, wheelXY } from "../lib/wheel";
   import type { PaneProps } from "../lib/dock";
 
   let { spec }: PaneProps<"image"> = $props();
@@ -14,26 +16,47 @@
   let natural = $state({ w: 0, h: 0 });
   /** The view: scale and offset of the picture's top-left corner in the frame. `fit`: follows the frame's size. */
   let view = $state({ s: 1, x: 0, y: 0, fit: true });
-  const MIN = 0.05, MAX = 40;
+  const MIN = 0.05, MAX = 40, PAD = 24;
+  /** How much taller than the frame (in shape) a picture must be to fit its width rather than its height: fitted
+   *  whole, a long screenshot would be a sliver too thin to read. */
+  const TALL = 2.5;
+
+  /** One axis of the view kept in the frame: centred when the picture is smaller than the frame along it, else its
+   *  edges no further in than the frame's padding. */
+  function axis(at: number, size: number, frameSize: number): number {
+    if (size <= frameSize - 2 * PAD) return (frameSize - size) / 2;
+    return Math.min(PAD, Math.max(frameSize - PAD - size, at));
+  }
+  function clamped(v: { s: number; x: number; y: number; fit: boolean }) {
+    if (!frame || !natural.w) return v;
+    return { ...v, x: axis(v.x, natural.w * v.s, frame.clientWidth), y: axis(v.y, natural.h * v.s, frame.clientHeight) };
+  }
 
   function fitView(): void {
     if (!frame || !natural.w) return;
-    const W = frame.clientWidth, H = frame.clientHeight, pad = 24;
-    const s = Math.min((W - 2 * pad) / natural.w, (H - 2 * pad) / natural.h);
-    view = { s, x: (W - natural.w * s) / 2, y: (H - natural.h * s) / 2, fit: true };
+    const W = frame.clientWidth, H = frame.clientHeight;
+    const byWidth = (W - 2 * PAD) / natural.w, whole = Math.min(byWidth, (H - 2 * PAD) / natural.h);
+    // a tall picture: its width, at most its own size (a narrow strip is not blown up), read from the top
+    const tall = natural.h / natural.w > TALL * (H / W);
+    const s = tall ? Math.min(byWidth, 1) : whole;
+    view = clamped({ s, x: (W - natural.w * s) / 2, y: tall ? PAD : (H - natural.h * s) / 2, fit: true });
   }
 
-  /** Zoom to scale `s` keeping the picture's point under (px, py) where it is. */
+  /** Zoom to scale `s` keeping the picture's point under (px, py) where it is (as far as the frame allows). */
   function zoomAt(s: number, px: number, py: number): void {
     const to = Math.min(MAX, Math.max(MIN, s)), k = to / view.s;
-    view = { s: to, x: px - (px - view.x) * k, y: py - (py - view.y) * k, fit: false };
+    view = clamped({ s: to, x: px - (px - view.x) * k, y: py - (py - view.y) * k, fit: false });
   }
 
   function onWheel(e: WheelEvent): void {
     e.preventDefault();
     const r = frame!.getBoundingClientRect();
     if (e.ctrlKey) return zoomAt(view.s * Math.exp(-wheelPixels(e) * 0.0025), e.clientX - r.left, e.clientY - r.top);
-    view = { ...view, x: view.x - e.deltaX, y: view.y - e.deltaY, fit: false };
+    // a shift+wheel goes sideways (a mouse has one wheel); the view stays "fit" while nothing can move
+    const d = wheelXY(e), sideways = e.shiftKey && !d.x;
+    const dx = sideways ? d.y : d.x, dy = sideways ? 0 : d.y;
+    const next = clamped({ ...view, x: view.x - dx, y: view.y - dy });
+    if (next.x !== view.x || next.y !== view.y) view = { ...next, fit: false };
   }
 
   let drag = $state<{ x: number; y: number } | null>(null);
@@ -43,7 +66,7 @@
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onMove(e: PointerEvent): void {
-    if (drag) view = { ...view, x: e.clientX - drag.x, y: e.clientY - drag.y, fit: false };
+    if (drag) view = clamped({ ...view, x: e.clientX - drag.x, y: e.clientY - drag.y, fit: false });
   }
   function onDouble(e: MouseEvent): void {
     if (!view.fit) return fitView();

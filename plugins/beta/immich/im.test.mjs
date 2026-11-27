@@ -1,7 +1,7 @@
 // node --test plugins/beta/immich/im.test.mjs — the plugin's logic on cut-down copies of Immich's answers.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { forAgent, itemsOf, keptName, listBody, rowOf, sendable, smartBody, subOf, uploadRequest, viewOf } from "./im.js";
+import { albumAssetsOf, albumBody, albumsOf, forAgent, groupOrderOf, itemsOf, keptName, listBody, rowOf, sendable, smartBody, subOf, uploadRequest, viewOf, withAlbums } from "./im.js";
 
 const PHOTO = { id: "a1", type: "IMAGE", originalFileName: "beach.jpg", localDateTime: "2026-03-14T16:20:00.000Z", fileCreatedAt: "2026-03-14T15:20:00.000Z",
   exifInfo: { city: "Lisbon", country: "Portugal", make: "Google", model: "Pixel 8", description: "" }, people: [{ id: "p1", name: "Ana" }, { id: "p2", name: "" }], isFavorite: true };
@@ -45,4 +45,15 @@ test("a picture is sent as Immich's upload form, named for this device by its va
 test("Open fetches the original, or the preview of one a page cannot draw", () => {
   assert.deepEqual(viewOf(rowOf(PHOTO)), { path: "/api/assets/a1/original", name: "beach.jpg" });
   assert.deepEqual(viewOf(rowOf({ id: "h", originalFileName: "IMG_1.HEIC" })), { path: "/api/assets/h/thumbnail?size=preview", name: "IMG_1.jpg" });
+});
+
+test("albums: the biggest first, empty ones left out; a photo in two albums once, an album's older photo added", () => {
+  const albums = albumsOf([{ id: "b", albumName: "Lisbon", assetCount: 2 }, { id: "c", albumName: "Empty", assetCount: 0 }, { id: "d", albumName: " ", assetCount: 5 }]);
+  assert.deepEqual(albums.map((a) => [a.id, a.name]), [["d", "(untitled album)"], ["b", "Lisbon"]]);
+  assert.equal(albumAssetsOf({ id: "b" }), null, "no assets in the answer: the client searches by album");
+  const old = { id: "o1", type: "IMAGE", originalFileName: "old.jpg", localDateTime: "2019-07-01T10:00:00.000Z" };
+  const rows = withAlbums([rowOf(PHOTO)], albums, new Map([["b", [PHOTO, old]], ["d", [PHOTO]]]));
+  assert.deepEqual(rows.map((r) => [r.id, r.albums]), [["a1", ["(untitled album)", "Lisbon"]], ["o1", ["Lisbon"]]]);
+  assert.deepEqual(groupOrderOf([...rows, rowOf({ id: "n", localDateTime: "2026-11-02T00:00:00Z" })]), ["(untitled album)", "Lisbon", "2026 November", "2026 March", "2019 July"]);
+  assert.deepEqual(albumBody("b", 2), { albumIds: ["b"], page: 2, size: 250, order: "desc", withExif: true, withPeople: true });
 });

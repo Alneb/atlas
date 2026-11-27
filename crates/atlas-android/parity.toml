@@ -145,6 +145,9 @@
 "today" = "page"
 "jellyfin" = { page = true, note = "the library and the reports work; a film plays its sound only until libmpv is in the app (DESIGN-video-player.md §3)" }
 "weather" = "page"
+"freshrss" = { page = true, note = "its JavaScript helper runs in the phone's core as on the desktop: the reader pane, the block, the round's notices" }
+"immich" = { page = true, note = "the Photos library and its search; Open keeps the photo in .atlas/remote and opens it in the page's image viewer" }
+"paperless" = { page = true, note = "the Documents library; Open keeps the PDF in .atlas/remote and opens it in the page's PDF reader" }
 "catalog-papers" = { page = true, note = "its helper is built into the APK (build-apk.sh engines); the Zotero connector's listener has no browser to answer there" }
 "zstd" = { page = true, note = "decompressed by the core's decoder (convert.unzstd); the cache is not pruned there (no find/rm)" }
 "syncthing" = { page = true, note = "its helper is built into the APK; the API key is set in its settings (a phone's Syncthing config is not readable)" }

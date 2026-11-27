@@ -6,7 +6,7 @@ title = "Immich"
 description = "your Immich photos: a library by month and people, a search by what is in them, Send to Immich, a tool for agents"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "image"
-version = "0.2.0"
+version = "0.3.0"
 api = 28 # atlas.openLink (v28); pick's search (v35) and fetch's multipart (v37) are feature-detected
 
 [permissions]

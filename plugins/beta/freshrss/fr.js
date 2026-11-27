@@ -2,8 +2,9 @@
 // cut-down copies of their answers): the Google Reader API (`/api/greader.php`, what FreshRSS recommends and its apps
 // use: feeds, unread counts, streams with continuations, read and starred marks) and, as the fallback, the Fever API
 // (`/api/fever.php`, one key, fewer features). Both are turned into one article shape:
-//   { id, title, url, feed, feedId, author, published (ms), html, read, starred }
-// so the helper, the reader pane and the tools never see which one answered.
+//   { id, title, url, feed, feedId, author, published (ms), crawled (ms), html, read, starred }
+// so the helper, the reader pane and the tools never see which one answered (`crawled`, ms: when FreshRSS fetched it,
+// Google Reader's only; 0 from Fever).
 
 /** Google Reader's states, as stream ids and tags. */
 export const READ = "user/-/state/com.google/read";
@@ -38,7 +39,7 @@ export function articleOf(it) {
   return {
     id: String(it.id), title: String(it.title ?? "").trim() || "(untitled)", url: link, feed: String(it.origin?.title ?? ""),
     feedId: String(it.origin?.streamId ?? ""), author: String(it.author ?? ""),
-    published: Number(it.published) ? Number(it.published) * 1000 : Number(it.crawlTimeMsec) || 0,
+    published: Number(it.published) ? Number(it.published) * 1000 : Number(it.crawlTimeMsec) || 0, crawled: Number(it.crawlTimeMsec) || 0,
     html: String(it.content?.content ?? it.summary?.content ?? ""), read: has(READ), starred: has(STARRED),
   };
 }
@@ -75,7 +76,7 @@ export function changeOf(mark) {
 export function feverArticle(it, feeds = new Map()) {
   return {
     id: String(it.id), title: String(it.title ?? "").trim() || "(untitled)", url: it.url ?? null, feed: feeds.get(Number(it.feed_id)) ?? "",
-    feedId: it.feed_id != null ? `feed/${it.feed_id}` : "", author: String(it.author ?? ""), published: (Number(it.created_on_time) || 0) * 1000,
+    feedId: it.feed_id != null ? `feed/${it.feed_id}` : "", author: String(it.author ?? ""), published: (Number(it.created_on_time) || 0) * 1000, crawled: 0,
     html: String(it.html ?? ""), read: !!Number(it.is_read), starred: !!Number(it.is_saved),
   };
 }
@@ -104,6 +105,26 @@ export function forAgent(a, text = "", chars = 0) {
   return {
     id: a.id, title: a.title, url: a.url, feed: a.feed, published: a.published ? new Date(a.published).toISOString() : null, read: a.read, starred: a.starred,
     ...(text ? { text: chars ? text.slice(0, chars) : text } : {}),
+  };
+}
+
+/** The unread articles a round has not told yet: newer than the last round (`since`, ms; by FreshRSS's crawl time
+ *  where it gives one, else the publication time) and not among the ids it told (`told`), newest first. */
+export function newSince(articles, since, told = []) {
+  const seen = new Set(told);
+  return articles.filter((a) => !a.read && (a.crawled || a.published) > since && !seen.has(a.id)).sort((a, b) => (b.crawled || b.published) - (a.crawled || a.published));
+}
+
+/** The one notice of a round: how many, from which feeds, the newest titles; opening it opens the reader. Replaces
+ *  the last round's (one id), so a day of rounds is one notice, not a pile. */
+export function noticeOf(fresh, shown = 3) {
+  if (!fresh.length) return null;
+  const feeds = [...new Set(fresh.map((a) => a.feed).filter(Boolean))];
+  const titles = fresh.slice(0, shown).map((a) => `• ${a.title}${a.feed ? ` (${a.feed})` : ""}`);
+  const rest = fresh.length > shown ? [`and ${fresh.length - shown} more`] : [];
+  return {
+    id: "freshrss-new", title: `${fresh.length} new article${fresh.length === 1 ? "" : "s"} in FreshRSS${feeds.length === 1 ? `: ${feeds[0]}` : ""}`,
+    body: [...titles, ...rest].join("\n"),
   };
 }
 

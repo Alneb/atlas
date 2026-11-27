@@ -20,6 +20,9 @@ const READ = "user/-/state/com.google/read";
 const GITEM = { id: "tag:google.com,2005:reader/item/0001", title: "Spin chains", published: 1764230400, canonical: [{ href: "https://example.org/spin" }],
   summary: { content: "<p>Heisenberg <b>chains</b> again.</p><script>window.parent.hacked = 1</script>" }, origin: { streamId: "feed/3", title: "Condensed matter" }, categories: [] };
 
+/** Articles the stand-in's stream gives after GITEM: a round's new ones. */
+const later: Record<string, unknown>[] = [];
+
 test.beforeAll(async ({ request }) => {
   server = createServer((req, res) => {
     let body = "";
@@ -36,7 +39,7 @@ test.beforeAll(async ({ request }) => {
         if (req.headers.authorization !== "GoogleLogin auth=alice/tok1") { res.writeHead(401); return res.end(); }
         if (url.includes("/subscription/list")) return json({ subscriptions: [{ id: "feed/3", title: "Condensed matter", categories: [{ label: "Physics" }] }] });
         if (url.includes("/unread-count")) return json({ unreadcounts: [{ id: "feed/3", count: 1 }] });
-        if (url.includes("/stream/contents/")) return json({ items: [GITEM] });
+        if (url.includes("/stream/contents/")) return json({ items: [GITEM, ...later] });
         if (url.includes("/stream/items/contents")) return json({ items: body.includes(encodeURIComponent(GITEM.id)) ? [GITEM] : [] });
         if (url.endsWith("/reader/api/0/token")) { res.writeHead(200); return res.end("wtok\n"); }
         if (url.endsWith("/reader/api/0/edit-tag")) { res.writeHead(200); return res.end("OK"); }
@@ -109,4 +112,19 @@ test("an agent reads one article's whole text, without its HTML", async ({ reque
   const one = await r.json();
   expect(one).toMatchObject({ title: "Spin chains", feed: "Condensed matter", url: "https://example.org/spin" });
   expect(one.text).toContain("Heisenberg chains again.");
+});
+
+test("the round tells the articles that came since the last one, once, and only when asked", async ({ request }) => {
+  const settings = { server: `http://127.0.0.1:${port}`, protocol: "greader", user: "alice", api_password: "api-pass" };
+  const round = async () => { const r = await request.post("/api/plugins/freshrss/tools/check", { headers: H, data: {}, timeout: 60_000 }); expect(r.ok(), await r.text()).toBe(true); return r.json(); };
+  await request.put("/api/plugins/freshrss/settings", { headers: H, data: settings });
+  expect((await round()).skipped).toContain("off");
+  await request.put("/api/plugins/freshrss/settings", { headers: H, data: { ...settings, notify: true } });
+  expect((await round()).summary).toContain("first round");
+  later.push({ ...GITEM, id: "tag:google.com,2005:reader/item/0002", title: "Majorana modes", crawlTimeMsec: String(Date.now() + 60_000) });
+  const told = await round();
+  expect(told.notices?.[0]).toMatchObject({ id: "freshrss-new", title: "1 new article in FreshRSS: Condensed matter" });
+  expect(told.notices[0].body).toContain("Majorana modes");
+  expect((await round()).summary).toBe("nothing new");
+  later.length = 0;
 });

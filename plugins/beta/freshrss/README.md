@@ -47,3 +47,9 @@ untested.
 Beta (`plugins/beta/`). Needs plugin API 37 (`atlas.html.clean`). Tests: `node --test plugins/beta/freshrss/fr.test.mjs`
 (both APIs' answers into one article shape, the marks) and `ui/tests/freshrss.spec.ts` (the block, Save, the tools over
 Fever; the reader over Google Reader: sign-in, feeds, an article cleaned in the frame, marked read).
+
+## Notices of new articles
+
+With **Tell me of new articles** on (Settings → Plugins → FreshRSS), the `check` round runs every 30 minutes and
+sends one notice of the unread articles that came since the last round (it replaces the last one; opening it opens
+FreshRSS). The first round only notes the time. What a round saw is kept in `.atlas/cache/freshrss.json`.
