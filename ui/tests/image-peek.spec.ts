@@ -96,3 +96,30 @@ test("a formula grows with Ctrl held; its edit preview hides the label; a quick 
   await expect(preview).not.toContainText("label");
   await expect(preview.locator(".katex-error")).toHaveCount(0);
 });
+
+// Scrolling a note slides pictures under a still pointer; the mouseover WebKit sends then may say Ctrl is down (a stale
+// state from a Ctrl+S just before). Only a Ctrl really held for a look opens the large picture, and a wheel ends one.
+test("a scroll never opens the large picture: a stale Ctrl on a mouseover, or Ctrl+wheel", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/peek-scroll.svg", text: SVG } });
+  await request.put("/api/file", { headers: H, data: { path: "notes/peek-scroll.md", text: "# Scroll\n\n![[peek-scroll.svg]]\n\nend\n" } });
+  await page.goto("/");
+  await openFile(page, "peek-scroll.md");
+  const img = page.locator(".cm-content img.cm-embed-image").first();
+  await expect(img).toBeVisible();
+  // a mouseover saying Ctrl, with no Ctrl pressed: nothing
+  await img.dispatchEvent("mouseover", { ctrlKey: true, bubbles: true });
+  await page.waitForTimeout(300);
+  await expect(page.locator(".image-peek")).toHaveCount(0);
+  // Ctrl held and the wheel turned at once (the pane's zoom): no picture after the hold either
+  await img.hover();
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 40);
+  await page.waitForTimeout(300);
+  await expect(page.locator(".image-peek")).toHaveCount(0);
+  await page.keyboard.up("Control");
+  // a real look still works (hovered again: the zoom may have moved the picture)
+  await img.hover();
+  await page.keyboard.down("Control");
+  await expect(page.locator("img.image-peek")).toBeVisible();
+  await page.keyboard.up("Control");
+});

@@ -113,6 +113,9 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
   const follow = () => fit();
   window.addEventListener("scroll", follow, true);
   window.addEventListener("resize", follow);
+  // and with the box itself: it grows as its hint line appears under it, after the list was placed
+  const grows = typeof ResizeObserver === "function" ? new ResizeObserver(follow) : null;
+  grows?.observe(list.parentElement ?? box);
   async function look() {
     if (opts.when && !opts.when()) return close();
     const caret = box.selectionStart ?? 0, o = tokenAt(box.value, caret), still = looks.ask();
@@ -171,5 +174,5 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
   (box as HTMLElement).addEventListener("keydown", onKey, true);
   box.addEventListener("input", onInput);
   box.addEventListener("blur", close);
-  return { destroy() { (box as HTMLElement).removeEventListener("keydown", onKey, true); box.removeEventListener("input", onInput); box.removeEventListener("blur", close); window.removeEventListener("scroll", follow, true); window.removeEventListener("resize", follow); list.remove(); } };
+  return { destroy() { (box as HTMLElement).removeEventListener("keydown", onKey, true); box.removeEventListener("input", onInput); box.removeEventListener("blur", close); window.removeEventListener("scroll", follow, true); window.removeEventListener("resize", follow); grows?.disconnect(); list.remove(); } };
 }

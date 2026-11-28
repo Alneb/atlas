@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-28
+
 ### Added
 
 - Paperless-ngx as a library (Paperless 0.2.0, now beta): the Libraries page's Documents lists every document with its
@@ -42,6 +44,14 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ### Fixed
 
+- The PDF toolbar no longer squeezes the file's name to one letter beside its tools: with too little room the name
+  goes (the tab names the file), and it shows whole when the pane is wide.
+- Scrolling a note no longer opens a picture large: the Ctrl look follows a Ctrl really held, not the stale Ctrl
+  a mouse event can carry while pictures slide under the pointer, and a wheel (Ctrl+wheel zooms the pane) ends it.
+- Email's narrow folder rail tells its folders apart (Email 1.12.3): a plain folder shows its first letter and each
+  account its initial, where every one drew the same icon; the tooltip names the account.
+- The side panel's search leaves room to type: its options go to a second line when the panel is narrow, and long
+  file names end in an ellipsis.
 - A terminal follows the theme at once: it kept the previous theme's colours (white in a dark app) until the theme
   changed again.
 - Tooltips of the left bar's buttons show whole: they were cut off at the bar's edge. Every button's tip is now one

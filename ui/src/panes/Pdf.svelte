@@ -11,6 +11,7 @@
 <script lang="ts">
   import { errText } from "../lib/text";
   import { attachPan } from "../lib/pdf-pan";
+  import { giveWay } from "../lib/give-way";
   import { shownName } from "../lib/paths";
   // PDF reader + annotator on PDFium (lib/pdf-reader.ts): highlight (H, or H over selected text), pen/stylus ink (P),
   // text note (T), select (V/Esc), eraser (E), undo (Ctrl+Z), find (Ctrl+F), outline and page thumbnails, zoom
@@ -430,7 +431,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="pdf-pane" {onkeydown} onpointerdown={markUsed} bind:this={paneEl}>
-  <div class="toolbar">
+  <div class="toolbar" use:giveWay={{ part: ".title", min: 100 }}>
     <button class="icon-btn" class:on={outlineOpen && side === "outline"} title="Outline" aria-label="Outline" onclick={() => toggleSide("outline")} disabled={!outline.length}>
       <Icon name="contents" size={15} />
     </button>
@@ -565,6 +566,8 @@
   .overlay button { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 6px; pointer-events: auto; }
   .overlay button:hover { background: var(--bg-hover); }
   .title .engine { border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  /* less room than a readable name: the title goes (lib/give-way.ts); the tab and the explorer still name the file */
+  .title:global(.gone) { display: none; }
   .title .name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .title :global(svg) { flex: none; }
   .spacer { flex: 1; }

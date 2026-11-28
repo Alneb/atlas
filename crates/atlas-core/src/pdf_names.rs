@@ -23,8 +23,11 @@ struct Names {
     dests: HashMap<Vec<u8>, u32>,
 }
 
-/// The last document read, by path and modification time: a reader asks page after page of one paper.
-static LAST: Mutex<Option<(PathBuf, Option<SystemTime>, Arc<Names>)>> = Mutex::new(None);
+/// A document's names, kept with the path and modification time they were read at.
+type Cached = (PathBuf, Option<SystemTime>, Arc<Names>);
+
+/// The last document read: a reader asks page after page of one paper.
+static LAST: Mutex<Option<Cached>> = Mutex::new(None);
 
 fn names_of(pdf: &Path) -> Option<Arc<Names>> {
     let modified = std::fs::metadata(pdf).and_then(|m| m.modified()).ok();

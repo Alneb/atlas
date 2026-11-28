@@ -300,12 +300,14 @@
 {/if}
 
 <style>
-  .search-box { display: flex; align-items: center; gap: 8px; margin: 10px 10px 6px; padding: 0 10px; height: 32px; border-radius: var(--radius);
+  /* the field keeps room to type: in a narrow panel the options go to a second line (they took the whole row, the
+     field shrank to nothing) */
+  .search-box { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 0; margin: 10px 10px 6px; padding: 2px 10px; min-height: 32px; box-sizing: border-box; border-radius: var(--radius);
     background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--text-faint); transition: border-color .15s, box-shadow .15s; }
   .search-box:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); }
+  .search-box input { flex: 1 1 8em; min-width: 0; min-height: 26px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); }
   .keys-line { display: block; margin-top: 4px; }
-  .opts { display: inline-flex; gap: 2px; margin-left: auto; }
+  .opts { display: inline-flex; flex-wrap: wrap; gap: 2px; margin-left: auto; }
   .opt { font-family: var(--font-mono); font-size: calc(11.5px * var(--ui-scale, 1)); min-height: 24px; padding: 1px 5px; border-radius: 4px; color: var(--text-muted); border: 1px solid transparent; }
   :global(html.phone) .opt { min-width: 36px; min-height: 36px; font-size: 14px; }
   .opt:hover { color: var(--text); background: var(--bg-hover); }
@@ -320,7 +322,9 @@
   .file-hit { align-items: center; }
   .plugin-hit { flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
   .plugin-hit .detail { flex-basis: 100%; min-width: 0; color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fname { color: var(--text); white-space: nowrap; }
+  /* a long name ends in an ellipsis at the panel's edge; its folder gives way first */
+  .fname { color: var(--text); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+  .fdir { flex: 0 100 auto; min-width: 0; }
   .fdir { color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hit-file { display: flex; align-items: center; gap: 6px; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text); padding: 8px 8px 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .line-hit { padding-left: 14px; }

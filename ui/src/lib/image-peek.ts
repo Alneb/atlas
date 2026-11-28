@@ -7,7 +7,10 @@
 // Ctrl+click opens it in a tab (the editor's mousedown, create.ts). A display formula grows the same way (its rendering
 // cloned at a bigger size). What is under the pointer is looked up when Ctrl goes down — never the last picture
 // entered, which a scroll leaves stale — and only once Ctrl has been held a moment (HOLD_MS): a quick Ctrl+click or a
-// Ctrl+key shortcut shows nothing.
+// Ctrl+key shortcut shows nothing. Whether Ctrl is held for a look is this module's own state (`looking`), never a
+// mouse event's `ctrlKey`: scrolling a note slides pictures under a still pointer, and the mouseover WebKit sends then
+// can carry a stale Ctrl (from a Ctrl+S a moment before), which opened the large picture in the middle of a scroll. A
+// wheel ends a look too: Ctrl+wheel zooms the pane, it is not a look at the picture under the pointer.
 import { blobUrl } from "./raw";
 
 let installed = false;
@@ -62,6 +65,8 @@ export function installImagePeek(): void {
   };
   let leaving: ReturnType<typeof setTimeout> | undefined;
   let holding: ReturnType<typeof setTimeout> | undefined;
+  /** Ctrl went down alone and was held HOLD_MS, with no key, click or wheel since: a picture entered now shows. */
+  let looking = false;
   const hide = () => { clearTimeout(leaving); clearTimeout(holding); holding = undefined; big?.remove(); };
   // where the pointer is, for the look-up when Ctrl goes down (the large one lets the pointer through: not found there)
   let px = -1, py = -1;
@@ -76,7 +81,7 @@ export function installImagePeek(): void {
   };
   document.addEventListener("mouseover", (e) => {
     const at = (e.target as Element).closest?.(peekable) ?? null;
-    if (at) { stay(); over = at; if (e.ctrlKey) show(); }
+    if (at) { stay(); over = at; if (looking) show(); }
     else if (within(e)) stay();
     else if (big?.isConnected) hideSoon(); else over = null;
   });
@@ -87,12 +92,15 @@ export function installImagePeek(): void {
     if (within(e) || (e.target as Element).closest?.(peekable)) stay(); else hideSoon();
   }, { passive: true });
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Control") { if (e.ctrlKey) hide(); return; } // Ctrl+C, Ctrl+S…: a shortcut, not a look
-    if (e.repeat || holding || big?.isConnected) return;
-    holding = setTimeout(() => { holding = undefined; over = under(); show(); }, HOLD_MS);
+    if (e.key !== "Control") { if (e.ctrlKey) { looking = false; hide(); } return; } // Ctrl+C, Ctrl+S…: a shortcut, not a look
+    if (e.repeat || holding || looking) return;
+    holding = setTimeout(() => { holding = undefined; looking = true; over = under(); show(); }, HOLD_MS);
   });
+  const stop = () => { looking = false; hide(); };
   // a Ctrl+click is an action (open in a tab, follow a link): no picture before it
   document.addEventListener("mousedown", () => { clearTimeout(holding); holding = undefined; }, true);
-  document.addEventListener("keyup", (e) => { if (e.key === "Control") hide(); });
-  window.addEventListener("blur", hide);
+  // a scroll (or Ctrl+wheel, the pane's zoom) is not a look: any pending or open one ends
+  document.addEventListener("wheel", () => { if (holding || looking || big?.isConnected) stop(); }, { capture: true, passive: true });
+  document.addEventListener("keyup", (e) => { if (e.key === "Control") stop(); });
+  window.addEventListener("blur", stop);
 }

@@ -43,6 +43,8 @@
     return { main: out, other };
   }
   const leaf = (f: Folder) => f.label.split(f.delimiter ?? "/").at(-1) ?? f.label;
+  /** A name's first letter or digit ("[Gmail]" → "G"), for the rail: "·" when it has none. */
+  const initial = (name: string) => /[\p{L}\p{N}]/u.exec(name)?.[0] ?? "·";
 
   function go(v: View) {
     mail.go(v);
@@ -86,7 +88,7 @@
     {@const t = tree(a.name)}
     <div class="group">
       <button class="head" onclick={() => fold(key)} aria-expanded={!folded[key]} title={a.user ?? a.name}>
-        {#if rail}<span class="dot" class:busy={a.syncing} class:bad={a.error || a.status?.state === "error"} class:off={a.status?.state === "offline"}></span>
+        {#if rail}<span class="ini acct-ini">{initial(a.name)}</span><span class="dot" class:busy={a.syncing} class:bad={a.error || a.status?.state === "error"} class:off={a.status?.state === "offline"}></span>
         {:else}
           <Icon name={folded[key] ? "right" : "down"} size={12} />
           <span class="acct">{a.name}</span>
@@ -104,10 +106,10 @@
       {#if !folded[key] && !a.error}
         {#each t.main as { f, depth, children } (f.path)}
           <div class="frow" style:--depth={rail ? 0 : depth}>
-            <button class="row" class:on={isFolder(f)} class:over={over === `${a.name}:${f.path}`} title={f.label}
+            <button class="row" class:on={isFolder(f)} class:over={over === `${a.name}:${f.path}`} title={rail ? `${f.label} · ${a.name}` : f.label}
               onclick={() => go({ name: "folder", account: a.name, folder: f.path, label: f.label })}
               ondragover={(e) => { e.preventDefault(); over = `${a.name}:${f.path}`; }} ondragleave={() => (over = null)} ondrop={(e) => drop(e, f)}>
-              <Icon name={ROLE_ICON[f.role ?? ""] ?? "folder"} />
+              {#if rail && !ROLE_ICON[f.role ?? ""]}<span class="ini" aria-hidden="true">{initial(leaf(f))}</span>{:else}<Icon name={ROLE_ICON[f.role ?? ""] ?? "folder"} />{/if}
               {#if !rail}<span class="name">{leaf(f)}</span>{/if}
               {#if f.unread && f.role !== "sent" && f.role !== "trash" && f.role !== "junk" && f.role !== "drafts"}<span class="n" class:strong={f.role === "inbox"}>{f.unread}</span>{/if}
             </button>
@@ -161,6 +163,10 @@
   .acct { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: none; letter-spacing: 0; font-size: 1.15em; }
   .faint { color: var(--text-faint); font-weight: 400; }
   .add { font-size: 0.9em; }
+  /* the rail's letter for a folder with no role of its own (and for an account): plain folders all drew the same
+     icon there, and two accounts' Inbox / Trash looked alike, with nothing to tell them apart but the tooltip */
+  .ini { width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 5px; border: 1px solid var(--border); font-size: 0.78em; font-weight: 600; line-height: 1; color: inherit; text-transform: uppercase; }
+  .acct-ini { border: none; background: var(--bg-hover); color: var(--text-muted); letter-spacing: 0; font-size: 1em; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
   .dot.busy { background: var(--accent); }
   .dot.bad { background: var(--red); }
